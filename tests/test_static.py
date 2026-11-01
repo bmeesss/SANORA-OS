@@ -162,6 +162,28 @@ class StaticValidation(unittest.TestCase):
         self.assertIn("ADR-0007", text)
         self.assertIn("boot_tested", text)
 
+    def test_developer_documentation_exists_and_is_actionable(self):
+        required = [
+            "docs/development/BUILDING.md",
+            "docs/development/REPOSITORY.md",
+            "docs/development/TESTING.md",
+            "docs/development/PACKAGE_STRATEGY.md",
+            "docs/development/BRANDING.md",
+            "docs/development/INTERNATIONALIZATION.md",
+            "docs/development/SECURITY_BASELINE.md",
+            "docs/architecture/STATUS.md",
+            "docs/decisions/README.md",
+            "docs/decisions/0007-nvidia-in-default-iso.md",
+        ]
+        missing = [p for p in required if not (REPO_ROOT / p).is_file()]
+        self.assertEqual(missing, [], f"missing developer docs: {missing}")
+        building = (REPO_ROOT / "docs/development/BUILDING.md").read_text()
+        self.assertIn("./build.sh", building)
+        self.assertIn("live-build", building)
+        status = (REPO_ROOT / "docs/architecture/STATUS.md").read_text()
+        self.assertIn("FAILED", status, "status doc must record the ISO failure")
+        self.assertIn("BLOCKED", status)
+
 
 if __name__ == "__main__":
     unittest.main()
