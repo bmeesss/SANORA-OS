@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# SANORA OS Calamares branding component.
+# Key names follow the upstream Calamares branding.desc format
+# (src/branding/default/branding.desc in the Calamares source tree).
+# ${...} values are substituted by Calamares from /etc/os-release.
+#
+# Status: NOT boot-tested. See docs/architecture/STATUS.md.
+---
+componentName: sanora
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+windowExpanding: normal
+windowSize: 800px,520px
+windowPlacement: center
+
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         "${NAME}"
+    shortProductName:    "SANORA"
+    version:             "${VERSION_ID}"
+    shortVersion:        "${VERSION_ID}"
+    versionedName:       "${NAME} ${VERSION_ID}"
+    shortVersionedName:  "SANORA ${VERSION_ID}"
+    bootloaderEntryName: "SANORA OS"
+    productUrl:          "${HOME_URL}"
+    supportUrl:          "${HOME_URL}"
+    knownIssuesUrl:      "${BUG_REPORT_URL}"
+    releaseNotesUrl:     "${HOME_URL}"
+
+images:
+    productIcon:         "sanora-logo.png"
+    productLogo:         "sanora-logo.png"
+    productWelcome:      "sanora-logo.png"
+
+style:
+    SidebarBackground:        "#12283C"
+    SidebarText:              "#F2F6FA"
+    SidebarTextCurrent:       "#12283C"
+    SidebarBackgroundCurrent: "#4FD1C5"
+
+slideshow:               "show.qml"
+slideshowAPI: 2
