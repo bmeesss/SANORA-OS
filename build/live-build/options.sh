@@ -11,6 +11,8 @@
 # bash (an array) because build.sh is the single supported entrypoint; no
 # live-build `auto/config` POSIX wrapper duplicates these values.
 
+# LB_OPTIONS is consumed by build.sh, which sources this file.
+# shellcheck disable=SC2034
 LB_OPTIONS=(
   # Base distribution and architecture (ADR-0001)
   "--mode" "debian"
