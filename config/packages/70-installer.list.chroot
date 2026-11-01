@@ -1,0 +1,10 @@
+# Calamares with Debian's own module sequence and module configuration.
+# SANORA OS only supplies a branding component (see installer/calamares/)
+# and patches the single `branding` key with hook 0020 -- no fork.
+calamares
+calamares-settings-debian
+
+# Recommended by calamares in trixie; needed to unpack the live squashfs and
+# to offer Btrfs as an installation target.
+btrfs-progs
+squashfs-tools

@@ -1,0 +1,12 @@
+# Networking and Plasma's NetworkManager applet.
+network-manager
+plasma-nm
+
+# Audio: pipewire-audio is a Debian metapackage that pulls pipewire-pulse,
+# pipewire-alsa, libspa-0.2-bluetooth and wireplumber.
+pipewire-audio
+wireplumber
+
+# Bluetooth stack and KDE integration.
+bluez
+bluedevil

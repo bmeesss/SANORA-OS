@@ -1,0 +1,11 @@
+# live system plumbing. The kernel meta-package (linux-image-amd64) is added
+# by live-build from --linux-flavours/--linux-packages, not listed here.
+live-boot
+live-config
+live-config-systemd
+live-tools
+user-setup
+sudo
+locales
+debian-archive-keyring
+ca-certificates

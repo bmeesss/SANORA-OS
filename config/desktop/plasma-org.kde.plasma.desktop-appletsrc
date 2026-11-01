@@ -1,0 +1,12 @@
+# SANORA OS - best-effort default wallpaper for newly created users.
+# Installed as /etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc.
+# The original wallpaper is shipped by the sanora-base package and by the
+# live-build includes at /usr/share/sanora/wallpapers/sanora-default.png.
+# See config/desktop/README.md: this mechanism is NOT boot-tested yet.
+
+[Containments][1]
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
+[Containments][1][Wallpaper][org.kde.image][General]
+Image=file:///usr/share/sanora/wallpapers/sanora-default.png

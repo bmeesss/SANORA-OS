@@ -1,0 +1,12 @@
+# SANORA OS - system-wide KDE defaults.
+# KDE reads defaults from $XDG_CONFIG_DIRS (normally /etc/xdg). Setting the
+# default global theme here is the documented KDE mechanism; see
+# config/desktop/README.md for the reference and the current limitation.
+
+[KDE]
+# Upstream Breeze is the initial default. A SANORA Global Theme package will
+# replace this value in a later phase. Never point at a package not shipped.
+LookAndFeelPackage=org.kde.breeze.desktop
+
+[Icons]
+Theme=breeze

@@ -1,0 +1,17 @@
+# Software centre and metadata. The Discover PackageKit backend is built into
+# plasma-discover in trixie; packagekit provides the D-Bus service behind it.
+plasma-discover
+appstream
+packagekit
+plasma-discover-backend-flatpak
+plasma-discover-backend-fwupd
+
+# Sandboxed application delivery and its Plasma permissions KCM.
+flatpak
+kde-config-flatpak
+
+# Firmware updates through LVFS (no SANORA-hosted firmware service).
+fwupd
+
+# One browser so a development ISO is usable. No other consumer apps.
+firefox-esr

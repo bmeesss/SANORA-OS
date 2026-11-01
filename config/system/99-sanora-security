@@ -1,0 +1,10 @@
+// SANORA OS security baseline - periodic package metadata refresh and
+// unattended installation of Debian security updates.
+// Allowed origins remain those configured by the unattended-upgrades package
+// in /etc/apt/apt.conf.d/50unattended-upgrades. SANORA OS does not widen them.
+//
+// This is configuration only: it has NOT been verified by booting the ISO.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::AutocleanInterval "7";
+APT::Periodic::Unattended-Upgrade "1";

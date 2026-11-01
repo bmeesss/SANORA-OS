@@ -1,0 +1,14 @@
+# Mandatory access control, firewall, authorisation and privilege elevation.
+apparmor
+apparmor-utils
+firewalld
+plasma-firewall
+polkitd
+pkexec
+
+# Debian security updates without a SANORA-specific updater.
+unattended-upgrades
+
+# LUKS2 capability. NOTE: Calamares encryption module configuration is NOT
+# implemented yet; this only makes the tooling available.
+cryptsetup

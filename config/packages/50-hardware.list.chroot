@@ -1,0 +1,10 @@
+# Userspace graphics. Open kernel drivers (amdgpu, i915, xe, nouveau), the
+# Debian kernel and live-build's firmware handling cover the hardware side;
+# SANORA OS invents no drivers and claims no hardware compatibility yet.
+libgl1-mesa-dri
+mesa-vulkan-drivers
+
+# Minimal hardware reporting tools for HCL reports (phase-1 T-07).
+pciutils
+usbutils
+lshw

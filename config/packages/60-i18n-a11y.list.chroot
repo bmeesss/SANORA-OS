@@ -1,0 +1,12 @@
+# English is the default, but the system must be able to render and type in
+# other scripts from the start. fonts-noto-core covers many Unicode scripts.
+fonts-noto-core
+fonts-noto-color-emoji
+fonts-dejavu-core
+fonts-liberation2
+ibus
+
+# Accessibility: AT-SPI core and the Orca screen reader. Orca pulls
+# speech-dispatcher/espeak-ng through its dependencies.
+at-spi2-core
+orca

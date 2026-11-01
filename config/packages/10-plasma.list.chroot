@@ -1,0 +1,17 @@
+# KDE Plasma on Wayland (ADR-0002). kwin-wayland is the compositor; xwayland
+# keeps legacy X11 applications working. sddm is included for the installed
+# system; note that Debian trixie's sddm is still described as an X11 display
+# manager and pulls xserver-xorg -- Wayland session behaviour must be boot-tested.
+plasma-desktop
+plasma-workspace
+kwin-wayland
+xwayland
+sddm
+breeze
+systemsettings
+kde-cli-tools
+polkit-kde-agent-1
+
+# A minimal usable desktop: file manager and terminal only.
+dolphin
+konsole
