@@ -108,6 +108,26 @@ sha256sum -c out/SHA256SUMS
 ```
 Then boot the ISO and update this file. **The fix has NOT been verified.**
 
+**What was changed in response to this failure** (all implemented, none of
+them a fake success):
+
+1. `build/scripts/preflight.sh` now checks every required command, bootloader
+   asset, root privileges and mirror reachability **before** `lb build`, and
+   exits with an actionable message instead of a cryptic late failure.
+2. `build.sh` writes `out/build-metadata.json` with `"status": "failed"` and
+   the error text on failure, so a failed build cannot be mistaken for a pass.
+3. `.github/workflows/iso.yml` runs the build in a privileged
+   `debian:trixie` container with the full toolchain, on manual/release/schedule
+   triggers only. That workflow is the intended place to complete the build;
+   it has not been executed yet.
+4. `./build.sh --config-only` and `./build.sh --check` were added so the entire
+   `live-build` configuration, package and metadata can be built and validated
+   **offline**, which is how this repository was verified despite the network
+   restriction.
+
+**Whether the fix was verified:** No. Only the offline portion was verified;
+`lb build` itself has never run here. The ISO remains `Failed / Blocked`.
+
 ## Genuine blockers
 
 1. **ADR-0007 — NVIDIA in the default ISO is `BLOCKED`.**
