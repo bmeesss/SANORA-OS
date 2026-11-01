@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-License-Identifier: GPL-2.0-or-later
+  Original SANORA OS wallpaper. Abstract geometry only; no Apple assets,
+  no macOS-like dock, no copied interface elements, no embedded text.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sanoraSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B1424"/>
+      <stop offset="0.55" stop-color="#132A3A"/>
+      <stop offset="1" stop-color="#1B4B52"/>
+    </linearGradient>
+    <radialGradient id="sanoraGlow" cx="0.72" cy="0.32" r="0.55">
+      <stop offset="0" stop-color="#4FD1C5" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#4FD1C5" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sanoraSky)"/>
+  <rect width="1920" height="1080" fill="url(#sanoraGlow)"/>
+
+  <g fill="none" stroke="#4FD1C5" stroke-opacity="0.12" stroke-width="2">
+    <circle cx="1380" cy="350" r="240"/>
+    <circle cx="1380" cy="350" r="360"/>
+    <circle cx="1380" cy="350" r="480"/>
+    <circle cx="1380" cy="350" r="600"/>
+  </g>
+
+  <path d="M 0 820 C 420 760 720 880 1100 820 C 1450 765 1700 850 1920 800 L 1920 1080 L 0 1080 Z"
+        fill="#0A1A22" fill-opacity="0.55"/>
+  <path d="M 0 820 C 420 760 720 880 1100 820 C 1450 765 1700 850 1920 800"
+        fill="none" stroke="#4FD1C5" stroke-opacity="0.35" stroke-width="3"/>
+  <circle cx="1380" cy="350" r="26" fill="#4FD1C5" fill-opacity="0.9"/>
+</svg>
