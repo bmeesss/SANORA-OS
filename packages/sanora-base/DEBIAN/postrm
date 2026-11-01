@@ -1,0 +1,14 @@
+#!/bin/sh
+# sanora-base: restore Debian's /etc/os-release when the package is removed.
+set -e
+
+case "$1" in
+    remove|purge)
+        if dpkg-divert --list | grep -Fq "by sanora-base"; then
+            dpkg-divert --package sanora-base --remove --rename \
+                --divert /etc/os-release.debian /etc/os-release || true
+        fi
+        ;;
+esac
+
+exit 0

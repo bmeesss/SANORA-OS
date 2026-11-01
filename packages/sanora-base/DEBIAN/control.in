@@ -1,0 +1,17 @@
+Package: sanora-base
+Version: @SANORA_VERSION@
+Section: misc
+Priority: optional
+Architecture: all
+Depends: base-files, gettext-base
+Maintainer: SANORA OS contributors <bmeesss@users.noreply.github.com>
+Homepage: https://github.com/bmeesss/SANORA-OS
+Description: SANORA OS base identity, defaults and branding
+ sanora-base provides SANORA OS release metadata, /etc defaults, KDE system
+ defaults, original branding assets, Calamares branding and the sanora-info
+ helper. It is deliberately small; later phases will split defaults, branding
+ and system tooling into separate packages.
+ .
+ This is a development package for the 0.1.x milestone, not a release
+ artifact. It overrides /etc/os-release via a dpkg-divert so that the SANORA
+ identity is visible to systemd, SDDM and applications.

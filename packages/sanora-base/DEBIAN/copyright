@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: sanora-base
+Source: https://github.com/bmeesss/SANORA-OS
+
+Files: *
+Copyright: 2026 SANORA OS contributors
+License: GPL-2.0-or-later
+ This package is free software; you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation; either version 2 of the License, or (at your option) any later
+ version.
+ .
+ This package is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 2 can be found in /usr/share/common-licenses/GPL-2.
+
+Files: usr/share/sanora/branding/*
+       usr/share/sanora/wallpapers/*
+Copyright: 2026 SANORA OS contributors
+License: GPL-2.0-or-later
+ Original vector artwork created for SANORA OS. No third-party or Apple
+ assets are included. A separate licence for branding assets is still an
+ open decision (ADR-0006 / Q-01); until then these files are distributed
+ under the same terms as the package.

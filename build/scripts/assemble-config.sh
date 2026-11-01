@@ -11,9 +11,12 @@
 #   config/packages/*.list.chroot  -> config/package-lists/
 #   build/work/packages/*.deb      -> config/packages.chroot/
 #   build/live-build/hooks/normal/ -> config/hooks/normal/
-#   config/desktop/, config/system/, branding/, installer/
-#                                  -> config/includes.chroot/
+#   generated build identity       -> config/includes.chroot/etc/sanora/
 #   branding/iso/                 -> config/includes.binary/
+#
+# All other SANORA files (/etc defaults, KDE defaults, Calamares branding,
+# wallpaper, logo, metadata, helper script) are delivered by the sanora-base
+# Debian package in config/packages.chroot/. There is exactly one copy of each.
 
 set -Eeuo pipefail
 
@@ -34,11 +37,7 @@ need() {
 }
 
 mkdir -p "$CONF/package-lists" "$CONF/packages.chroot" "$CONF/hooks/normal" \
-         "$INC/etc/sanora" "$INC/etc/apt/apt.conf.d" \
-         "$INC/etc/live/config.conf.d" "$INC/etc/xdg" \
-         "$INC/etc/skel/.config" "$INC/etc/calamares/branding/sanora" \
-         "$INC/usr/share/sanora/branding" "$INC/usr/share/sanora/wallpapers" \
-         "$BIN/.disk"
+         "$INC/etc/sanora" "$BIN/.disk"
 
 # 1. Explicit, reviewed package lists.
 shopt -s nullglob
@@ -67,39 +66,8 @@ fi
 cp "${HOOKS[@]}" "$CONF/hooks/normal/"
 chmod 0755 "$CONF"/hooks/normal/*.hook.chroot
 
-# 4. /etc and system defaults (upstream files are never edited directly).
-need "$REPO_ROOT/config/system/sanora.conf"
-need "$REPO_ROOT/config/system/99-sanora-security"
-need "$REPO_ROOT/config/system/10-sanora-user.conf"
-need "$REPO_ROOT/config/desktop/kdeglobals"
-need "$REPO_ROOT/config/desktop/plasma-org.kde.plasma.desktop-appletsrc"
-
-cp "$REPO_ROOT/config/system/sanora.conf"            "$INC/etc/sanora/sanora.conf"
-cp "$REPO_ROOT/config/system/99-sanora-security"     "$INC/etc/apt/apt.conf.d/99-sanora-security"
-cp "$REPO_ROOT/config/system/10-sanora-user.conf"    "$INC/etc/live/config.conf.d/10-sanora-user.conf"
-cp "$REPO_ROOT/config/desktop/kdeglobals"             "$INC/etc/xdg/kdeglobals"
-cp "$REPO_ROOT/config/desktop/plasma-org.kde.plasma.desktop-appletsrc" \
-                                                      "$INC/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
-
-# 5. Original branding assets.
-for asset in sanora-logo.svg sanora-logo.png; do
-    need "$REPO_ROOT/branding/$asset"
-    cp "$REPO_ROOT/branding/$asset" "$INC/usr/share/sanora/branding/$asset"
-done
-for asset in sanora-wallpaper.svg sanora-wallpaper.png; do
-    need "$REPO_ROOT/branding/$asset"
-    cp "$REPO_ROOT/branding/$asset" "$INC/usr/share/sanora/wallpapers/$asset"
-done
-
-# 6. Calamares branding directory (settings.conf comes from Debian and is
-#    patched by hook 0020, which keeps the upstream module sequence intact).
-for f in branding.desc show.qml sanora-logo.png; do
-    need "$REPO_ROOT/installer/calamares/branding/sanora/$f"
-    cp "$REPO_ROOT/installer/calamares/branding/sanora/$f" \
-       "$INC/etc/calamares/branding/sanora/$f"
-done
-
-# 7. Deterministic build identity inside the image. No wall-clock timestamps.
+# 4. Deterministic build identity inside the image. No wall-clock timestamps.
+#    Everything else in /etc comes from the sanora-base package.
 : "${SOURCE_DATE_EPOCH:=0}"
 : "${SANORA_BUILD_ID:=unknown}"
 cat > "$INC/etc/sanora/build-info" <<EOF
@@ -113,7 +81,7 @@ SANORA_ARCH=${SANORA_ARCH}
 SANORA_DEFAULT_LOCALE=${SANORA_DEFAULT_LOCALE}
 EOF
 
-# 8. Files visible on the ISO medium before booting.
+# 5. Files visible on the ISO medium before booting.
 need "$REPO_ROOT/branding/iso/README.txt"
 need "$REPO_ROOT/branding/iso/disk-info"
 sed -e "s|@SANORA_VERSION@|${SANORA_VERSION}|g" \

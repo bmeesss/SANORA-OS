@@ -1,0 +1,65 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# sanora-info - print SANORA OS identity and build information.
+#
+# Internationalisation: user-visible labels are passed through gettext with
+# TEXTDOMAIN=sanora-base, following normal Linux gettext conventions. Product
+# names and identifiers are deliberately not translated. No English text is
+# embedded in logic beyond these gettext message strings; translations can be
+# added later as /usr/share/locale/<lang>/LC_MESSAGES/sanora-base.mo without
+# changing this script. There is no translation catalogue yet.
+
+set -eu
+
+# SANORA_ROOT is a test-only prefix: it lets the offline test suite exercise
+# this script against an extracted package tree without chroot or root rights.
+# In normal use it is unset, so paths are the real /etc paths.
+ROOT="${SANORA_ROOT:-}"
+
+TEXTDOMAIN=sanora-base
+export TEXTDOMAIN
+TEXTDOMAINDIR="${TEXTDOMAINDIR:-/usr/share/locale}"
+export TEXTDOMAINDIR
+
+if command -v gettext >/dev/null 2>&1; then
+    msg() { gettext "$1"; }
+else
+    msg() { printf '%s' "$1"; }
+fi
+
+# /etc/os-release and /etc/sanora/build-info are shell-safe key=value files.
+NAME_VALUE="SANORA OS"
+VERSION_VALUE="unknown"
+ID_VALUE="sanora"
+if [ -r "${ROOT}/etc/os-release" ]; then
+    # shellcheck disable=SC1091
+    . "${ROOT}/etc/os-release"
+    NAME_VALUE="${NAME:-SANORA OS}"
+    VERSION_VALUE="${VERSION_ID:-unknown}"
+    ID_VALUE="${ID:-sanora}"
+fi
+
+BUILD_ID="unknown"
+BASE_SUITE="unknown"
+BASE_VERSION="unknown"
+ARCH_VALUE="unknown"
+LOCALE_VALUE="unknown"
+if [ -r "${ROOT}/etc/sanora/build-info" ]; then
+    # shellcheck disable=SC1091
+    . "${ROOT}/etc/sanora/build-info"
+    BUILD_ID="${SANORA_BUILD_ID:-unknown}"
+    BASE_SUITE="${DEBIAN_SUITE:-unknown}"
+    BASE_VERSION="${DEBIAN_VERSION:-unknown}"
+    ARCH_VALUE="${SANORA_ARCH:-unknown}"
+    LOCALE_VALUE="${SANORA_DEFAULT_LOCALE:-unknown}"
+fi
+
+printf '%s\n' "$NAME_VALUE"
+printf '%s: %s (%s)\n' "$(msg 'Identifier')" "$ID_VALUE" "$VERSION_VALUE"
+printf '%s: Debian %s (%s)\n' "$(msg 'Base')" "$BASE_VERSION" "$BASE_SUITE"
+printf '%s: %s\n' "$(msg 'Architecture')" "$ARCH_VALUE"
+printf '%s: %s\n' "$(msg 'Desktop')" "KDE Plasma (Wayland)"
+printf '%s: %s\n' "$(msg 'Default language')" "en"
+printf '%s: %s\n' "$(msg 'Default locale')" "$LOCALE_VALUE"
+printf '%s: %s\n' "$(msg 'Build ID')" "$BUILD_ID"

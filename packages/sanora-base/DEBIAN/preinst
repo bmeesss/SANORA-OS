@@ -1,0 +1,22 @@
+#!/bin/sh
+# sanora-base: divert Debian's /etc/os-release symlink before unpacking.
+#
+# Debian's base-files owns /etc/os-release (normally a symlink to
+# ../usr/lib/os-release). SANORA OS needs its own values there. A dpkg-divert is
+# the standard Debian mechanism for replacing a file owned by another package;
+# editing base-files or forking it would break upgrades.
+#
+# This is a documented, minimal system-level change. It has NOT been tested by
+# installing the package on a running trixie system yet.
+set -e
+
+case "$1" in
+    install|upgrade)
+        if ! dpkg-divert --list | grep -Fq "by sanora-base"; then
+            dpkg-divert --package sanora-base --add --rename \
+                --divert /etc/os-release.debian /etc/os-release
+        fi
+        ;;
+esac
+
+exit 0
