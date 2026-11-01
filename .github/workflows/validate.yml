@@ -1,0 +1,43 @@
+name: Validate
+
+# Static validation only. No ISO is built here: ISO builds need root, several
+# GB of packages and a Debian mirror, which is too expensive/unreliable for
+# every pull request. See iso.yml for manual / release / scheduled builds.
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Offline static validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned ShellCheck
+        # Pinned so CI and local runs use the same analyser version (0.11.0).
+        run: python -m pip install --disable-pip-version-check shellcheck-py==0.11.0.1
+
+      - name: Offline checks (shell, Python, config, package, metadata)
+        run: ./build.sh --check
+
+      - name: Assemble the live-build configuration tree (no root/network)
+        run: ./build.sh --config-only
+
+      - name: Upload assembled build metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanora-build-metadata
+          path: out/
+          if-no-files-found: error

@@ -1,0 +1,55 @@
+name: Feature or change proposal
+description: Propose a technical change, new component or architecture decision
+title: "[Proposal] "
+labels: [ "proposal" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please write in English. SANORA OS reuses upstream projects rather than
+        forking them; proposals that add a new dependency or background service
+        must explain why configuration/integration is not sufficient.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or goal
+      description: Separate facts from assumptions and recommendations.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered, including doing nothing
+    validations:
+      required: true
+  - type: dropdown
+    id: adr
+    attributes:
+      label: Does this change an approved architecture decision?
+      description: "If yes, an ADR in docs/decisions/ is required before implementation."
+      options:
+        - "No"
+        - "Yes - I will propose an ADR"
+        - "Unsure"
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Licensing, reproducibility, internationalisation, hardware support, maintenance cost.
+    validations:
+      required: true
+  - type: textarea
+    id: testing
+    attributes:
+      label: How will this be verified?
+      description: Name the tests you will actually run.
+    validations:
+      required: true

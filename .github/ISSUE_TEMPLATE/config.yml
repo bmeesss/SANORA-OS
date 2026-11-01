@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private report)
+    url: https://github.com/bmeesss/SANORA-OS/security/advisories/new
+    about: Do NOT open a public issue for a suspected vulnerability. See SECURITY.md.
+  - name: Build and test documentation
+    url: https://github.com/bmeesss/SANORA-OS/blob/arena/fa064594-sanora-os/docs/development/BUILDING.md
+    about: Read the build requirements and ISO build process before reporting a build failure.

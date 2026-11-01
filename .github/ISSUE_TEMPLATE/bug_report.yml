@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible problem in the SANORA OS source tree or a built ISO
+title: "[Bug] "
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping SANORA OS. Please write in English.
+        This project is in the **development foundation** phase; many features
+        are `Planned` or `Blocked` and are listed in `docs/architecture/STATUS.md`.
+        Check that list before reporting a missing feature as a bug.
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: Which part is affected?
+      placeholder: "build.sh / live-build / sanora-base / Calamares / Plasma / ISO boot"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "0.1.0-dev @ abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host OS, architecture, VM or real hardware, Secure Boot state.
+      placeholder: |
+        Host: Debian 13 trixie x86-64
+        Target: QEMU/OVMF UEFI VM
+        Secure Boot: off
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Exact steps to reproduce
+      description: Include the exact commands you ran.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Paste the real output or log excerpt. Do not paraphrase errors.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: tested
+    attributes:
+      label: Did you actually run the failing step?
+      options:
+        - "Yes, I ran it and captured the output above"
+        - "No, this is from reading the code or documentation"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "For ISO builds: last 50 lines of build/work/live/build.log."
+      render: shell

@@ -1,0 +1,72 @@
+name: Build development ISO
+
+# Deliberately NOT triggered by pull_request. ISO builds are expensive and
+# require root + a Debian mirror. Triggers: manual, release, weekly schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why is this ISO being built?"
+        required: false
+        default: "manual development build"
+  release:
+    types: [ published ]
+  schedule:
+    # Sundays at 04:17 UTC.
+    - cron: "17 4 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  iso:
+    name: Debian live-build ISO
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            live-build debootstrap xorriso squashfs-tools syslinux-common \
+            grub-efi-amd64-bin dosfstools mtools dpkg-dev git python3 curl \
+            ca-certificates coreutils findutils
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preflight (host dependencies + Debian mirror)
+        run: SANORA_SKIP_NETWORK_CHECK=0 bash build/scripts/preflight.sh
+
+      - name: Build ISO
+        # The container runs as root; SOURCE_DATE_EPOCH is derived from git.
+        run: ./build.sh
+
+      - name: Show build metadata
+        if: always()
+        run: |
+          echo "--- out/ ---"
+          ls -la out/ || true
+          echo "--- build-metadata.json ---"
+          cat out/build-metadata.json || true
+
+      - name: Upload ISO and checksums
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanora-development-iso
+          path: out/
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanora-build-log
+          path: build/work/live/build.log
+          if-no-files-found: warn
+
+# NOTE: this workflow has NOT been executed yet. It is a real, runnable
+# foundation, not a verified green build. See docs/architecture/STATUS.md.
