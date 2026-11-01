@@ -1,6 +1,6 @@
 # SANORA OS — Architectuur- en onderzoeksdocument
 
-> **Status:** Concept 0.1 — fase **RESEARCH & ARCHITECTURE** — **ter goedkeuring**
+> **Status:** Concept 0.2 — fase **RESEARCH & ARCHITECTURE** — **ADR-0001 en ADR-0002 goedgekeurd op 2026-11-01**; open punten en één afwijking van het advies zijn vastgelegd in **Bijlage A**
 > **Datum:** 2026-11-01 (lokale tijd UTC)
 > **Repository:** `bmeesss/SANORA-OS` (publiek), werkbranch `arena/fa064594-sanora-os`, basiscommit `c4fb1d2`
 > **Auteur:** Arena AI Agent Mode (hoofdontwikkelaar / systeemarchitect / technisch onderzoek)
@@ -38,14 +38,15 @@ Dit document bevat een **technische** interpretatie van licenties en handelsmerk
 
 ### 0.5 Besluitenlogboek (ADR's, allemaal *voorgesteld*)
 
-| ID | Voorgestelde beslissing | Status |
+| ID | Voorgestelde beslissing | Status (bijgewerkt 2026-11-01, zie Bijlage A) |
 |---|---|---|
-| ADR-0001 | Basis = Debian 13 *trixie* stable (amd64), geen eigen kernel vanaf nul | Voorgesteld |
-| ADR-0002 | Desktop = KDE Plasma op Wayland, eigen identiteit via Global Theme / KWin-scripts / configuratie | Voorgesteld |
+| ADR-0001 | Basis = Debian 13 *trixie* stable (amd64), geen eigen kernel vanaf nul | **Geaccepteerd** |
+| ADR-0002 | Desktop = KDE Plasma op Wayland, eigen identiteit via Global Theme / KWin-scripts / configuratie | **Geaccepteerd** |
 | ADR-0003 | Pakketbeheer = apt/dpkg + eigen ondertekende repo; Flatpak voor applicaties; geen snap als standaardkanaal | Voorgesteld |
 | ADR-0004 | ISO = `live-build` met `SOURCE_DATE_EPOCH` en reproduceerbaarheidscontrole | Voorgesteld |
 | ADR-0005 | Installer = Calamares (Codeberg), met Debian Installer als terugvaloptie | Voorgesteld |
-| ADR-0006 | Licentie = nog te kiezen; voorstel: code GPL-2.0-or-later of Apache-2.0, documentatie/assets CC-BY-SA-4.0 | Voorgesteld, zie §21 |
+| ADR-0006 | Licentie eigen code = **GPL-2.0-or-later** (gekozen); documentatie/assets nog apart te besluiten | Richting gekozen, uitwerking open |
+| ADR-0007 | NVIDIA standaard in de ISO (afwijking van het advies) | **Ter bevestiging** — zie Bijlage A.2 |
 
 ---
 
@@ -988,12 +989,50 @@ SANORA-OS/
 
 ---
 
-## Afsluiting — goedkeuring vereist
+## Afsluiting — status na goedkeuring
 
 **[AANBEVELING]** Dit document is de volledige eerste oplevering: repository-inventarisatie, onderzoek naar bases en desktops, driver-/kernel-/Wayland-strategie, systeemarchitectuur, performance-, beveiligings-, privacy-, package-, softwarecentrum-, installer- en ISO-strategie, repositorystructuur, roadmap, risico's, open vragen, eerste taken en bronnen.
 
 **[FEIT]** Er is géén distributie gebouwd, geen code gewijzigd, geen map aangemaakt en geen bestaand bestand overschreven. Alleen `SANORA_OS_ARCHITECTURE.md` is toegevoegd.
 
-**[AANBEVELING]** **Wacht op goedkeuring.** De eerste vervolgstap is T-01: beoordeel ADR-0001 t/m ADR-0006 en beantwoord minimaal Q-01 t/m Q-04 en Q-06 (§21). Belangrijke wijzigingen in deze architectuur worden als nieuwe ADR voorgesteld, met uitleg waarom, en nooit stilzwijgend doorgevoerd.
+**[FEIT]** De goedkeuring van ADR-0001 en ADR-0002, plus de antwoorden op Q-01, Q-04 en Q-06, zijn vastgelegd in **Bijlage A** (2026-11-01). **[AANBEVELING]** De eerste vervolgstap blijft T-01: leg de geaccepteerde ADR's en de nog open ADR-0007 (NVIDIA in ISO) vast, en beantwoord vóór enige implementatie de bevestigingsvraag in Bijlage A.2. Belangrijke wijzigingen in deze architectuur worden als nieuwe ADR voorgesteld, met uitleg waarom, en nooit stilzwijgend doorgevoerd.
 
 **SANORA OS — kwaliteit boven snelheid.**
+
+---
+
+## Bijlage A — Besluitenlogboek na review (2026-11-01)
+
+> **[FEIT]** Deze bijlage is **additief** toegevoegd nadat de gebruiker de eerste oplevering heeft beoordeeld. De onderzoeksinhoud van §1 t/m §23 is niet stilzwijgend gewijzigd. De antwoorden op Q-01, Q-02, Q-04 en Q-06 (§21) staan hieronder; §21 blijft als historische vragenlijst intact voor onafhankelijke review.
+
+### A.1 Antwoorden van de gebruiker
+
+| Vraag | Antwoord | Direct gevolg | Status |
+|---|---|---|---|
+| Q-02 / goedkeuring ADR-0001 + ADR-0002 | **Beide goedgekeurd** | Debian 13 trixie stable (amd64) + KDE Plasma op Wayland zijn de vastgestelde basis | `accepted` |
+| Q-01 / licentie eigen code | **GPL-2.0-or-later** | ADR-0006 krijgt een richting; licentie voor documentatie en branding-assets blijft een apart besluit | `richting gekozen, uitwerking open` |
+| Q-06 / NVIDIA in ISO | **Ja, in de standaard-ISO** | **Afwijking van het technische advies** in §9.3, §10.5 en §20/R-02 — zie A.2 | `ter bevestiging via ADR-0007` |
+| Q-04 / capaciteit | **1 persoon + AI-ondersteuning** | Bevestigt **[AANNAME]** in §3.3; risico R-09 (capaciteit) is daarmee **`Hoog / Hoog`** en niet langer hypothetisch | `bevestigd` |
+
+### A.2 Afwijking: NVIDIA standaard in de ISO — expliciet voorgesteld, niet stilzwijgend doorgevoerd
+
+**[FEIT]** Het oorspronkelijke voorstel was: NVIDIA-ondersteuning **opt-in ná installatie**, met als redenen de licentievoorwaarden, Secure Boot/MOK-complexiteit, de koppeling tussen kernelmodules, GSP-firmware en userspace, en de juridische toetslast (§9.3, §10.5, §20 R-02). **[FEIT]** De gebruiker heeft gekozen voor opname in de standaard-ISO.
+
+**[AANBEVELING — ter bevestiging]** Leg deze afwijking vast als **ADR-0007 "NVIDIA in de standaard-ISO"**, met minimaal de volgende verplichte consequenties en mitigaties:
+
+1. **[FEIT]** De NVIDIA Driver License Agreement staat distributie toe voor kernels onder een OSI-goedgekeurde licentie, mits binaire bestanden **ongewijzigd** blijven en de overeenkomst aan elke ontvanger wordt verstrekt [S37]. → De volledige licentietekst moet aantoonbaar in het image én in de installer zichtbaar zijn; dit is geen optionele tekst.
+2. **[FEIT]** De open kernelmodules (dual MIT/GPLv2) worden door NVIDIA aanbevolen; Blackwell en later worden **uitsluitend** door de open modules ondersteund; kernelmodules, GSP-firmware en userspace moeten uit dezelfde driverrelease komen [S34][S36]. → Eén exact vastgelegde driverversie per ISO, met een koppeltabel in `THIRD_PARTY.md` en een CI-check op versie-overeenkomst.
+3. **[FEIT]** De open modules kennen nadelen: langzamere GPU-initialisatie, langere S3/S4/RTD3-latentie en marginaal hoger verbruik in sommige scenario's [S36]. → Deze worden als bekende beperkingen in de release notes opgenomen en als KPI-7/KPI-8-metingen getest (§11).
+4. **[FEIT]** Out-of-tree kernelmodules vereisen bij Secure Boot ondertekening met een MOK [S40]. → Zonder eigen ondertekende shim (§12.2, R-01) moet de installer de gebruiker door MOK-registratie leiden, of er moet een expliciete "Secure Boot uit"-waarschuwing komen. Dit raakt direct aan F-06 (begrijpelijke foutmeldingen).
+5. **[FEIT]** De licentie beperkt o.a. reverse engineering, gewijzigde headers en datacentergebruik voor GeForce/Titan [S37]; firmware valt per blob onder verschillende licenties [S13][S38]. → Juridische toets vóór de eerste publieke ISO blijft een **harde gate** (fase 3/10), ongeacht deze keuze.
+6. **[FEIT]** De NVIDIA- en firmwarebestanden vergroten de ISO en de reproduceerbaarheidslast; de Debian-wiki laat zien dat firmware-patronen juist een oorzaak waren van niet-reproduceerbare trixie 13.2-images [S54]. → `diffoscope`-vergelijking per build verplicht.
+
+**[OPEN VRAAG — A.2]** Wilt u ADR-0007 met bovenstaande consequenties bevestigen, of alsnog kiezen voor de opt-in-route? Deze vraag wordt **eerst** voorgelegd; er wordt vóór het antwoord geen ISO-, pakket- of installerconfiguratie aangemaakt.
+
+### A.3 Capaciteit: consequentie voor de roadmap
+
+**[FEIT]** Met één persoon + AI-ondersteuning is R-09 (`Hoog / Hoog`) de bepalende beperking. **[AANBEVELING]** Houd daarom vast aan: geen eigen kernel, geen eigen compositor, geen eigen store-server, geen eigen door Microsoft ondertekende shim in v1, een zo klein mogelijke eigen APT-repo en maximaal hergebruik van Debian/KDE-updates. **[AANBEVELING]** De combinatie "solo maintainer + NVIDIA in ISO + eigen ondertekende repo + reproduceerbare ISO + Secure Boot-documentatie" is haalbaar alleen met strikte fasering en expliciete gates; zo nodig wordt de scope van fase 3 (minimale ISO) verkleind. Dit voorstel wijzigt geen goedgekeurde ADR, maar vraagt wel om een bewuste scope-beslissing vóór fase 2.
+
+### A.4 Wat op dit moment nog niet is gedaan
+
+**[FEIT]** Ondanks de goedkeuring van ADR-0001 en ADR-0002 is er **nog geen** distributieontwikkeling gestart: geen mapstructuur uit §18, geen `LICENSE`, geen community-bestanden, geen CI, geen pakket, geen ISO, geen meting. **[FEIT]** Bestaande bestanden (`README.md`) zijn onaangeraakt. **[AANBEVELING]** De eerste kleine, controleerbare stappen blijven T-01 t/m T-03 (§22): besluiten vastleggen als ADR's, daarna pas de overige fasestaart. **[AANBEVELING]** "Goedkeuring van de architectuur" betekent hier niet automatisch "vrijgave van alle implementatie"; elke fase in §19 behoudt haar eigen testcriteria en definitie van voltooiing.
