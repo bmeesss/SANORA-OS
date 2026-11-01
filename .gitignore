@@ -1,0 +1,27 @@
+# Build output (ISO images, checksums, metadata)
+/out/
+
+# live-build working tree and generated configuration
+/build/work/
+build.log
+chroot/
+binary/
+.cache/
+.local/
+
+# Built Debian packages (source is in packages/)
+*.deb
+*.changes
+*.buildinfo
+*.dsc
+*.tar.xz
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Editor / OS noise
+*.swp
+*~
+.DS_Store
