@@ -1,0 +1,40 @@
+#!/bin/sh
+# Select the SANORA branding component for Calamares.
+#
+# Why a patch is needed: Calamares has one top-level YAML settings.conf and no
+# drop-in directory for the `branding` key. Debian's `calamares-settings-debian`
+# package ships /etc/calamares/settings.conf with `branding: debian`, together
+# with the Debian-specific module sequence and module configs (unpackfs,
+# bootloader, ...). SANORA OS deliberately reuses that sequence instead of
+# maintaining a fork, so only the branding key is switched here.
+#
+# This is a documented patch to an upstream-supplied configuration file, not a
+# modification of upstream source. It has NOT been validated by booting the
+# installer yet; see docs/architecture/STATUS.md.
+
+set -e
+
+SETTINGS=/etc/calamares/settings.conf
+
+if [ ! -f "$SETTINGS" ]; then
+    echo "sanora: $SETTINGS missing; calamares-settings-debian not installed?" >&2
+    exit 1
+fi
+
+if grep -Eq '^[[:space:]]*branding:[[:space:]]*sanora([[:space:]]|$)' "$SETTINGS"; then
+    echo "sanora: Calamares branding already set to sanora"
+    exit 0
+fi
+
+if grep -Eq '^[[:space:]]*branding:' "$SETTINGS"; then
+    sed -i -E 's|^([[:space:]]*)branding:.*|\1branding: sanora|' "$SETTINGS"
+else
+    printf '\nbranding: sanora\n' >> "$SETTINGS"
+fi
+
+grep -Eq '^[[:space:]]*branding:[[:space:]]*sanora([[:space:]]|$)' "$SETTINGS" || {
+    echo "sanora: failed to set Calamares branding" >&2
+    exit 1
+}
+
+echo "sanora: Calamares branding set to sanora"

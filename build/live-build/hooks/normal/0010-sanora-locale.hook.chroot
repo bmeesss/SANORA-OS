@@ -1,0 +1,29 @@
+#!/bin/sh
+# SANORA OS is international; English (en_US.UTF-8) is the default.
+#
+# live-config generates the locale at boot from the `locales=` boot parameter
+# (build/live-build/options.sh). This hook additionally prepares the installed
+# system's locale configuration so that a system installed with Calamares has a
+# deterministic default. It writes only /etc/locale.gen and /etc/default/locale,
+# i.e. /etc configuration, not an upstream binary or source file.
+#
+# Adding more languages later means appending entries here and shipping the
+# matching fonts/input-method packages; it does not require changing code.
+
+set -e
+
+if ! command -v locale-gen >/dev/null 2>&1; then
+    echo "sanora: 'locales' package missing; cannot generate locale" >&2
+    exit 1
+fi
+
+printf '%s\n' 'en_US.UTF-8 UTF-8' > /etc/locale.gen
+locale-gen
+
+mkdir -p /etc/default
+cat > /etc/default/locale <<'EOF'
+LANG="en_US.UTF-8"
+LANGUAGE="en_US:en"
+EOF
+
+echo "sanora: default locale set to en_US.UTF-8"
