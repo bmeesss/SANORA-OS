@@ -7,7 +7,21 @@ calamares-settings-debian
 # start on an X11/XWayland display (verified in QEMU boot test, build #5).
 libxcb-cursor0
 
+# GRUB for the UEFI target system (the live ISO already carries GRUB EFI
+# for booting, but the installed system needs the package in the chroot).
+grub-efi-amd64
+
+# Required so the installed system's initramfs can unlock a LUKS2 root.
+# ADR-0011: /boot stays unencrypted, GRUB never has to unlock the volume.
+cryptsetup-initramfs
+
 # Recommended by calamares in trixie; needed to unpack the live squashfs and
 # to offer Btrfs as an installation target.
 btrfs-progs
 squashfs-tools
+
+# Development-ISO test tooling. These drive the Calamares GUI through
+# AT-SPI / X11 from a serial console inside a disposable QEMU VM; they are
+# not needed by a production image and are removed from the release profile.
+xdotool
+python3-pyatspi

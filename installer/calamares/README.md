@@ -31,22 +31,42 @@ changes only `branding: debian` to `branding: sanora`. This is an explicit,
 documented patch to an upstream-supplied configuration file — not a source
 modification.
 
+## Partitioning and LUKS2 (Phase 3)
+
+`modules/partition.conf` is shipped by `sanora-base` at
+`/etc/calamares/modules/partition.conf`. It uses only Calamares 3.3.14's own
+verified keys (ADR-0010, ADR-0011):
+
+- `luksGeneration: luks2` and `enableLuksAutomatedPartitioning: true`
+- `partitionLayout` with an **unencrypted `/boot` ext4** (`noEncrypt: true`)
+  and a LUKS2-encrypted ext4 root; Calamares prepends the EFI System Partition
+  automatically on UEFI
+- `initialPartitioningChoice: erase`, `initialSwapChoice: none`,
+  `efi.mountPoint: /boot/efi`, 300 MiB recommended ESP
+- `cryptsetup-initramfs` is installed so the initramfs unlocks the root volume
+
+Calamares has no PBKDF key, and GRUB 2.12 cannot unlock LUKS2 with Argon2id.
+The separate `/boot` means GRUB reads the kernel from plain ext4 and never
+needs to unlock the volume, so Argon2id can be kept. PBKDF2 was investigated
+and rejected (weaker KDF, would need custom scripting). See ADR-0011.
+
+## Installation validation
+
+`tests/install/qemu_install.py` boots the ISO in a disposable UEFI QEMU VM with
+an empty qcow2 disk, starts Calamares, and drives the GUI with
+`tests/install/calamares_driver.py` (AT-SPI widget discovery + xdotool, no
+hardcoded coordinates). It then reboots **from the disk only** and validates
+`/etc/os-release`, `sanora-info`, the created user, locale, keyboard, GPT/ESP,
+GRUB, `cryptsetup luksDump`, Wayland and the SANORA theme. The workflow is
+`.github/workflows/install.yml` (reads the source ISO run id from
+`.github/INSTALL_TEST_TRIGGER`). A running Calamares process is not treated as
+success; see `docs/architecture/STATUS.md` for the actual verified result.
+
 ## What is NOT implemented yet
 
-- **LUKS2 / encryption in the installer.** `modules/partition.conf` is now
-  shipped by `sanora-base` at `/etc/calamares/modules/partition.conf` and sets
-  `luksGeneration: luks2` plus EFI System Partition parameters, using only
-  Calamares' own module keys (see ADR-0010). `cryptsetup` 2:2.7.5-2 and
-  `libxcb-cursor0` are installed, and Calamares has been observed starting and
-  detecting disks in the QEMU VM. **An encrypted installation followed by a
-  reboot has NOT been performed**, so LUKS2 is `Implemented (config) / not
-  validated`. GRUB/LUKS2/Argon2id compatibility remains an open risk.
-- Btrfs + Snapper rollback configuration, OEM setup, online log uploading,
-  custom partitioning presets.
-- Any validation by actually booting the ISO and running the installer.
-  Calamares 3.3.14 in trixie may differ from the newer upstream
-  `branding.desc` format used as a reference; the first boot test must confirm
-  the branding loads without errors.
+- Btrfs + Snapper rollback configuration, OEM setup, online log uploading.
+- A fully encrypted `/boot` (Secure Boot / own shim would be required).
+- Localised installer text beyond upstream translations.
 
 ## Upstream references
 
