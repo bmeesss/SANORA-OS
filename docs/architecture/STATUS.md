@@ -27,7 +27,7 @@ access), is recorded below, and is not hidden.
 | Build entrypoint `./build.sh` | `Implemented` + `Partially tested` | `--check`, `--config-only`, `--clean` executed successfully; full ISO path blocked at preflight |
 | `sanora-base` Debian package | `Implemented` + `Tested` | built with `dpkg-deb --build`; `test_package.py` builds, extracts and inspects it; byte-reproducible across two builds |
 | Config tree assembly | `Implemented` + `Tested` | `test_assemble.py` runs the real script, checks idempotence and exact tree contents |
-| Package selection | `Implemented` + `Partially tested` | 8 lists, 59 unique packages, syntax/duplicates/NVIDIA-free checked offline; names individually checked against packages.debian.org on 2026-11-01; not installed on a real system |
+| Package selection | `Implemented` + `Partially tested` | 8 lists, 60 unique packages, syntax/duplicates/NVIDIA-free checked offline; names individually checked against packages.debian.org on 2026-11-01; not installed on a real system |
 | Branding (logo, wallpaper, ISO text) | `Implemented` + `Partially tested` | original SVG + PNG assets committed; PNG magic bytes and SVG XML validated; visual appearance inspected; not seen on a booted desktop |
 | KDE default theme/wallpaper wiring | `Partially tested` | `/etc/xdg/kdeglobals` and `/etc/skel` config set; documented as best-effort and **not boot-verified** |
 | Calamares branding | `Implemented` + `Partially tested` | branding component shipped by package; hook switches `branding:` key; installer never launched |

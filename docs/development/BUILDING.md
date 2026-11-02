@@ -21,7 +21,8 @@ container with `--privileged` also works and is what
 | `live-build`, `debootstrap` | upstream Debian build toolchain |
 | `xorriso` | ISO9660 image creation |
 | `squashfs-tools` | `mksquashfs` for the live filesystem |
-| `syslinux-common` | BIOS/isolinux bootloader assets (`/usr/lib/ISOLINUX/isolinux.bin`) |
+| `isolinux` | BIOS/isolinux bootloader binary (`/usr/lib/ISOLINUX/isolinux.bin`) — this is a **separate Debian package**, not `syslinux-common` |
+| `syslinux-common` | isolinux modules (`*.c32`) used by the BIOS boot menu |
 | `grub-efi-amd64-bin`, `dosfstools`, `mtools` | UEFI bootloader assets |
 | `dpkg-dev` (`dpkg-deb`) | building `sanora-base` |
 | `git`, `python3`, `curl`, `coreutils` | metadata, scripts and preflight |
@@ -31,7 +32,7 @@ Install on Debian trixie:
 ```sh
 sudo apt update
 sudo apt install live-build debootstrap xorriso squashfs-tools \
-                 syslinux-common grub-efi-amd64-bin dosfstools mtools \
+                 isolinux syslinux-common grub-efi-amd64-bin dosfstools mtools \
                  dpkg-dev git python3 curl ca-certificates
 ```
 
@@ -162,8 +163,22 @@ It contains explicit gates: `nvidia_in_iso`, `boot_tested`,
 
 - `.github/workflows/validate.yml` — on every push/PR: pinned ShellCheck,
   `./build.sh --check`, `./build.sh --config-only`. No ISO.
-- `.github/workflows/iso.yml` — `workflow_dispatch`, published releases and a
-  weekly schedule only; runs in a privileged `debian:trixie` container and
-  uploads the ISO. It has **not** been executed yet.
+- `.github/workflows/iso.yml` — `workflow_dispatch`, published releases, a
+  weekly schedule, **and a push to the marker file
+  `.github/ISO_BUILD_TRIGGER`**. It runs in a privileged `debian:trixie`
+  container with real network access, executes `./build.sh`, measures component
+  versions, boots the ISO in QEMU for UEFI and legacy BIOS, and uploads the ISO
+  plus boot evidence. Changing that marker file is the documented way to
+  request a real ISO build on the working branch, because the repository's CI
+  token cannot call the `workflow_dispatch` API (HTTP 403) and `release` /
+  `schedule` triggers only apply to the default branch.
+- Boot validation is performed by `tests/boot/qemu_boot.py`. It uses the ISO's
+  real bootloader, presses Enter through the QEMU human monitor, drives the
+  guest serial console with `pexpect`, captures framebuffer screenshots with
+  `screendump`, and writes `boot-validation.json` with explicit per-check
+  booleans. `console=tty0 console=ttyS0,115200` is present in
+  `--bootappend-live` so that headless CI boots can be validated over serial
+  without changing the normal graphical boot behaviour.
+- Results of the first real run are recorded in `docs/architecture/STATUS.md`.
 
 See `docs/development/TESTING.md` for the test matrix.
