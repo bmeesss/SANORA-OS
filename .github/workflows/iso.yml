@@ -180,40 +180,33 @@ jobs:
       - name: Reproducibility - diffoscope and file-level diff
         if: always()
         run: |
-          # Never let analysis abort the build job. Disk is limited: do NOT
-          # extract two squashfs images. Compare cheap chroot file listings
-          # and run diffoscope with bounded container recursion instead.
+          # A full-ISO diffoscope run unpacks both 2.4 GB images into the
+          # runner's /tmp and kills the GitHub-hosted container (verified in
+          # runs 41505275082 and 41514773588). Keep the analysis bounded:
+          # diffoscope is run on the deterministic reproducibility EVIDENCE
+          # (chroot file listings and build metadata), and the file-level diff
+          # identifies exactly which paths/sizes/mtimes differ.
           set +e
           df -h / || true
-          SECOND_ISO="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
-          echo "=== chroot file-list differences (path|type|size|mtime|mode|uid|gid) ==="
-          if [ -f /tmp/first-chroot-file-list.txt ] && [ -f out/chroot-file-list.txt ]; then
-            diff /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
-              > out/squashfs-metadata-diff.txt 2>&1
-            echo "differing lines: $(wc -l < out/squashfs-metadata-diff.txt)"
-            head -100 out/squashfs-metadata-diff.txt
-          else
-            echo "chroot file list missing on one side" > out/squashfs-metadata-diff.txt
-          fi
-          echo "=== diffoscope (bounded, no squashfs extraction) ==="
-          FREE_KB="$(df -k / | awk 'NR==2 {print $4}')"
-          if [ -f /tmp/sanora-first.iso ] && [ -n "$SECOND_ISO" ] && \
-             [ "${FREE_KB:-0}" -gt 6000000 ]; then
-            timeout 300 diffoscope \
-              --max-container-depth 1 --max-text-report-size 120000 \
-              /tmp/sanora-first.iso "$SECOND_ISO" > out/diffoscope.txt 2>&1
-            echo "diffoscope exit: $?" >> out/diffoscope.txt
-            head -120 out/diffoscope.txt
-          else
-            echo "Insufficient free disk (${FREE_KB} KB) or ISO pair missing;" \
-              " diffoscope skipped to protect the runner." > out/diffoscope.txt
-            cat out/diffoscope.txt
-          fi
-          # Free the retained first ISO and the live-build chroot before the
-          # 3.8 GB Debian baseline ISO is downloaded.
-          cp build/work/live/build.log out/lb-build.log 2>/dev/null || true
+          : > out/diffoscope.txt
+          echo "=== diffoscope: chroot file lists ===" >> out/diffoscope.txt
+          timeout 120 diffoscope --max-text-report-size 60000 \
+            /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
+            >> out/diffoscope.txt 2>&1
+          echo "diffoscope file-list exit: $?" >> out/diffoscope.txt
+          echo "=== diffoscope: build metadata ===" >> out/diffoscope.txt
+          timeout 120 diffoscope --max-text-report-size 30000 \
+            /tmp/first-metadata.json out/build-metadata.json \
+            >> out/diffoscope.txt 2>&1
+          echo "diffoscope metadata exit: $?" >> out/diffoscope.txt
+          echo "=== plain file-list diff (path|type|size|mtime|mode|uid|gid) ==="
+          diff /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
+            > out/squashfs-metadata-diff.txt 2>&1
+          echo "differing lines: $(wc -l < out/squashfs-metadata-diff.txt)"
+          head -100 out/squashfs-metadata-diff.txt
+          head -120 out/diffoscope.txt
+          # Free the retained first ISO before the Debian baseline download.
           rm -f /tmp/sanora-first.iso
-          rm -rf build/work/live
           df -h / || true
           exit 0
 
