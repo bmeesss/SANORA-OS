@@ -68,7 +68,7 @@ jobs:
           python3 tests/install/qemu_install.py \
             --iso "${{ steps.iso.outputs.iso }}" \
             --out out/install-plain --mode plain \
-            --driver tests/install/calamares_driver.py --timeout 2400
+            --driver tests/install/calamares_driver.py --timeout 1200
           rc=$?
           set -e
           cat out/install-plain/install-validation.json || true
@@ -76,14 +76,14 @@ jobs:
           exit "$rc"
 
       - name: Installation - LUKS2
-        if: always()
+        if: success()
         id: luks
         run: |
           set +e
           python3 tests/install/qemu_install.py \
             --iso "${{ steps.iso.outputs.iso }}" \
             --out out/install-luks --mode luks \
-            --driver tests/install/calamares_driver.py --timeout 2400
+            --driver tests/install/calamares_driver.py --timeout 1200
           rc=$?
           set -e
           cat out/install-luks/install-validation.json || true
@@ -102,20 +102,25 @@ jobs:
           python3 - <<'PY'
           import base64, json, os, pathlib
           wanted = [
-              "out/install-plain/install-validation.json",
+              "out/install-plain/install-qemu-stderr.log",
+              "out/install-plain/install-serial.log",
               "out/install-plain/install-driver-log.txt",
               "out/install-plain/installed-checks.txt",
-              "out/install-luks/install-validation.json",
+              "out/install-luks/install-qemu-stderr.log",
+              "out/install-luks/install-serial.log",
               "out/install-luks/install-driver-log.txt",
               "out/install-luks/installed-checks.txt",
+              # Verdicts last so they survive the 60k check-run truncation.
+              "out/install-plain/install-validation.json",
+              "out/install-luks/install-validation.json",
           ]
           parts = []
           for name in wanted:
               p = pathlib.Path(name)
               if p.is_file():
                   body = p.read_text(errors="replace")
-                  if len(body) > 14000:
-                      body = "...[truncated]...\n" + body[-14000:]
+                  if len(body) > 5000:
+                      body = "...[truncated]...\n" + body[-5000:]
                   parts.append(f"===== {name} =====\n{body}")
           # One downscaled screenshot per phase, base64 for local inspection.
           budget = 60000 - sum(len(p) for p in parts) - 2000

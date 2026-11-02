@@ -217,9 +217,12 @@ def main():
     )
 
     kvm = os.path.exists("/dev/kvm") and os.access("/dev/kvm", os.W_OK)
+    # qemu_boot.py (verified working) uses the combined OVMF image with
+    # `-bios`. A split CODE/VARS pflash pair did not produce a serial console
+    # in the first install run, so use the same proven firmware path here and
+    # keep the VARS file only as a fallback for the installed-system reboot.
+    combined_fd = "/usr/share/qemu/OVMF.fd"
     code_fd = "/usr/share/OVMF/OVMF_CODE_4M.fd"
-    if not pathlib.Path(code_fd).is_file():
-        code_fd = "/usr/share/qemu/OVMF.fd"
 
     mon = f"/tmp/sanora-install-{args.mode}.sock"
     for p in (mon,):
@@ -232,8 +235,7 @@ def main():
         a = [
             "qemu-system-x86_64", "-no-reboot", "-m", "4096", "-smp", "2",
             "-machine", "q35",
-            "-drive", f"if=pflash,format=raw,readonly=on,file={code_fd}",
-            "-drive", f"if=pflash,format=raw,file={vars_fd}",
+            "-bios", combined_fd,
             "-drive", f"file={disk},if=virtio,format=qcow2",
             "-vga", "std", "-display", "none",
             "-serial", "stdio",
@@ -250,8 +252,8 @@ def main():
 
     result["vm"] = {
         "ram_mb": 4096, "vcpus": 2, "disk": "24G qcow2 virtio",
-        "firmware": code_fd, "accel": "kvm" if kvm else "tcg",
-        "network": "qemu user-mode e1000", "uefi_vars_persisted": True,
+        "firmware": combined_fd, "accel": "kvm" if kvm else "tcg",
+        "network": "qemu user-mode e1000", "uefi_vars_persisted": False,
     }
     screenshots_b64 = []
 
@@ -318,7 +320,9 @@ def main():
 
     install_ok = False
     try:
-        deadline = time.time() + args.timeout
+        # A serial login prompt must appear quickly. Do NOT wait the whole
+        # installation timeout here (that masked the first run's boot failure).
+        deadline = time.time() + 240
         shell = False
         while time.time() < deadline:
             try:
@@ -461,7 +465,7 @@ def main():
     if child2 is None:
         return finish(1)
     try:
-        deadline = time.time() + 600
+        deadline = time.time() + 300
         logged_in = False
         while time.time() < deadline:
             try:
