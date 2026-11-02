@@ -179,6 +179,11 @@ It contains explicit gates: `nvidia_in_iso`, `boot_tested`,
   booleans. `console=tty0 console=ttyS0,115200` is present in
   `--bootappend-live` so that headless CI boots can be validated over serial
   without changing the normal graphical boot behaviour.
-- Results of the first real run are recorded in `docs/architecture/STATUS.md`.
+- The workflow also rebuilds the same commit a second time and writes
+  `out/reproducibility.json` plus a byte-level diff (`out/byte-diff.txt`,
+  `out/byte-diff-context.txt`) when the two ISOs differ.
+- **Verified:** run `41469346725` completed with every step green, produced a
+  2.39 GB ISO and booted it under UEFI and BIOS. Full results are in
+  `docs/architecture/STATUS.md`.
 
 See `docs/development/TESTING.md` for the test matrix.

@@ -201,7 +201,9 @@ class StaticValidation(unittest.TestCase):
         self.assertIn("./build.sh", building)
         self.assertIn("live-build", building)
         status = (REPO_ROOT / "docs/architecture/STATUS.md").read_text()
-        self.assertIn("FAILED", status, "status doc must record the ISO failure")
+        self.assertIn("Built | **YES**", status,
+                      "status doc must record the verified ISO build")
+        self.assertIn("BOOTED", status)
         self.assertIn("BLOCKED", status)
 
 

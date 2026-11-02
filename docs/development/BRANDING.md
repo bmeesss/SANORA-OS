@@ -17,7 +17,7 @@ the artwork itself.
 | Logo | `branding/sanora-logo.svg` + 256×256 PNG | `Implemented` + inspected |
 | Wallpaper | `branding/sanora-wallpaper.svg` + 1920×1080 PNG | `Implemented` + inspected |
 | Desktop theme config | `/etc/xdg/kdeglobals` with `LookAndFeelPackage=org.kde.breeze.desktop` | `Implemented`, best-effort, untested |
-| Default wallpaper wiring | `/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc` | `Implemented`, best-effort, untested |
+| Default wallpaper wiring | `/etc/skel/.config/` + `/etc/xdg/plasma-org.kde.plasma.desktop-appletsrc` | `Implemented`, **verified NOT effective** — see below |
 | Installer branding | `/etc/calamares/branding/sanora/` (branding.desc, show.qml, logo) | `Implemented`, untested |
 | Boot medium | `/README.txt` and `/.disk/info` on the ISO; `--iso-volume SANORA-DEV`, `--iso-application`, `--iso-publisher` | `Implemented`, untested |
 | Session/login identity | SDDM reads `/etc/os-release` | `Unknown` until boot test |
@@ -36,8 +36,14 @@ that package is the next branding task, not a silent config change.
 The `/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc` approach is
 widely used but KDE bug 487816 reports that a Global Theme layout script
 (`contents/layouts/org.kde.plasma.desktop-layout.js`) is the robust way to set
-a first-start wallpaper. The first boot test must confirm whether the current
-file takes effect; if not, it moves into the SANORA Global Theme.
+a first-start wallpaper. **QEMU boot tests (runs `41462790740` and
+`41469346725`) confirmed the config does NOT take effect**: Plasma overwrites
+it on first start. A second copy under `/etc/xdg` (KDE's `$XDG_CONFIG_DIRS`
+defaults) was added, but the guest check still reports the default is not
+applied. The fix is an original SANORA Plasma Global Theme with a layout
+script — a new feature deferred to the next phase. The wallpaper asset itself
+is present in the image at
+`/usr/share/sanora/wallpapers/sanora-default.png`.
 
 ## Not yet done (do not claim)
 

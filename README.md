@@ -79,12 +79,18 @@ copied: SANORA OS is an original identity, not a macOS clone.
   Secure Boot review. Per the project stop conditions, NVIDIA components are
   **not** bundled and the decision is flagged, not made silently. See
   [docs/decisions/0007-nvidia-in-default-iso.md](docs/decisions/0007-nvidia-in-default-iso.md).
-- An ISO has not yet been built in this development environment: the sandbox
-  has no `live-build` and no access to Debian package mirrors. See
-  [docs/architecture/STATUS.md](docs/architecture/STATUS.md) for the exact
-  failure and the fix.
-- There is no SANORA APT repository, no signed release channel, no own Secure
-  Boot shim and no published release yet.
+- **A real ISO HAS been built and booted.** GitHub Actions run `41469346725`
+  built `sanora-0.1.0-dev-amd64.iso` (2,392,113,152 bytes, SHA-256
+  `4b601d434e2d430d53b7900039fae77261b0c9b31d0f84133849874b28461ad2`) with
+  Debian live-build in a `debian:trixie` container and booted it in QEMU under
+  UEFI and BIOS to a KDE Plasma Wayland desktop. See
+  [docs/architecture/STATUS.md](docs/architecture/STATUS.md) for the verified
+  results, reproducibility findings and performance baseline.
+- The local sandbox still has no `live-build` and no Debian mirror access, so
+  ISO builds happen in CI, not here.
+- Encrypted (LUKS2) installation and reboot, full ISO reproducibility, the
+  SANORA wallpaper display, a signed SANORA APT repository, an own Secure Boot
+  shim and a public release are **not** done yet.
 
 ## Contributing
 
