@@ -92,6 +92,24 @@ class ThemeValidation(unittest.TestCase):
         ):
             self.assertIn(path, script)
 
+    def test_wallpaper_filename_matches_references(self):
+        """Regression: config referenced sanora-default.png but only
+        sanora-wallpaper.png was shipped (QEMU run 41519403741)."""
+        refs = []
+        for path in (
+            "branding/plasma/look-and-feel/defaults.in",
+            "branding/plasma/look-and-feel/org.kde.plasma.desktop-layout.js",
+            "config/desktop/plasma-org.kde.plasma.desktop-appletsrc",
+        ):
+            refs.append((REPO_ROOT / path).read_text())
+        self.assertTrue(
+            any("sanora-default.png" in r for r in refs),
+            "expected a canonical sanora-default.png reference",
+        )
+        script = (REPO_ROOT / "build/scripts/build-package.sh").read_text()
+        self.assertIn("sanora-default.png", script)
+        self.assertIn("sanora-default.svg", script)
+
 
 if __name__ == "__main__":
     unittest.main()

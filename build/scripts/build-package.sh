@@ -133,6 +133,13 @@ cp "$REPO_ROOT/branding/sanora-logo.svg"        "$TMP/usr/share/sanora/branding/
 cp "$REPO_ROOT/branding/sanora-logo.png"        "$TMP/usr/share/sanora/branding/"
 cp "$REPO_ROOT/branding/sanora-wallpaper.svg"   "$TMP/usr/share/sanora/wallpapers/"
 cp "$REPO_ROOT/branding/sanora-wallpaper.png"   "$TMP/usr/share/sanora/wallpapers/"
+# The KDE Global Theme, layout script and /etc/xdg defaults all reference the
+# canonical `sanora-default.*` name (verified missing in QEMU run 41519403741).
+# Ship that name too; keep the source names for existing documentation links.
+cp "$REPO_ROOT/branding/sanora-wallpaper.svg" \
+   "$TMP/usr/share/sanora/wallpapers/sanora-default.svg"
+cp "$REPO_ROOT/branding/sanora-wallpaper.png" \
+   "$TMP/usr/share/sanora/wallpapers/sanora-default.png"
 
 # 4b. Original KDE Plasma identity (KPackage Global Themes, color schemes,
 #     Plasma desktop theme and icon themes). Generated from templates so the

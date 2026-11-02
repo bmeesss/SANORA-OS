@@ -195,12 +195,16 @@ It contains explicit gates: `nvidia_in_iso`, `boot_tested`,
   ephemeral development key. Without a key the script refuses to build an
   unsigned archive (ADR-0012, `repo/README.md`). This adds `gnupg` and
   `apt-utils` as host dependencies.
-- `build.sh` exports `MKSQUASHFS_OPTIONS="-all-time ${SOURCE_DATE_EPOCH}"`,
-  an upstream `mksquashfs` option that normalises file mtimes inside the
-  squashfs. `diffoscope` on run `41519403741` showed dpkg-trigger files
-  (`/var/lib/ucf`, `/var/lib/systemd/deb-systemd-user-helper-enabled`,
-  `/var/lib/xml-core`, `/var/lib/xkb`, `/var/lib/vim`) with wall-clock mtimes
-  were the main cause of the two same-commit ISOs differing.
+- `build.sh` exports `SOURCE_DATE_EPOCH`; `mksquashfs` reads it natively and
+  clamps squashfs file mtimes. An explicit `-all-time` was tried and **rejected**
+  after CI run `41527475099` showed it conflicts with `SOURCE_DATE_EPOCH`
+  (`FATAL ERROR: SOURCE_DATE_EPOCH and command line options can't be used at the
+  same time to set timestamp(s)`). `diffoscope` on run `41519403741` identified
+  dpkg-trigger paths (`/var/lib/ucf`,
+  `/var/lib/systemd/deb-systemd-user-helper-enabled`, `/var/lib/xml-core`,
+  `/var/lib/xkb`, `/var/lib/vim`) with wall-clock mtimes; those are normalised
+  inside the squashfs, so the remaining ISO differences are at ISO/bootloader
+  level or in file contents and are documented in `docs/architecture/STATUS.md`.
 - `iso.yml` now runs `diffoscope` and a cheap chroot file-list diff on the two
   same-commit ISOs (`out/diffoscope.txt`, `out/squashfs-metadata-diff.txt`),
   scoped to the evidence files because unpacking two full ISOs exhausts the

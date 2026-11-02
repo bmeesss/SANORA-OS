@@ -284,6 +284,12 @@ def main():
             )
             child.logfile_read = handle
             hmp = HMP(mon)
+            # live-build's isolinux/GRUB menu uses `timeout 0` and waits for a
+            # keypress (Debian Live Manual §11.1). qemu_boot.py sends Enter via
+            # the QEMU human monitor; the install harness must do the same or
+            # the VM never reaches the kernel and no serial console appears.
+            time.sleep(8)
+            hmp.cmd("sendkey ret")
             return child, hmp, handle
         except Exception as exc:  # noqa: BLE001
             result["errors"].append(f"{phase_name} spawn failed: {exc}")

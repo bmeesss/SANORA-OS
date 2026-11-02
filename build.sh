@@ -51,13 +51,14 @@ fi
 export SOURCE_DATE_EPOCH
 export TZ=UTC LC_ALL=C LANG=C
 
-# live-build's binary_rootfs reads MKSQUASHFS_OPTIONS from the environment and
-# passes it to mksquashfs. `-all-time` normalises every file mtime inside the
-# squashfs to SOURCE_DATE_EPOCH: dpkg triggers, deb-systemd-helper, ucf, xml-core
-# and update-initramfs otherwise stamp files with the wall clock, which
-# diffoscope identified as the cause of the two same-commit ISOs differing.
-# This is an upstream squashfs-tools option, not a post-hoc ISO manipulation.
-export MKSQUASHFS_OPTIONS="${MKSQUASHFS_OPTIONS:-} -all-time ${SOURCE_DATE_EPOCH}"
+# mksquashfs already reads SOURCE_DATE_EPOCH itself and clamps every file
+# mtime inside the squashfs. Verified in CI run 41527475099: adding an explicit
+# `-all-time` made mksquashfs abort with
+#   "FATAL ERROR: SOURCE_DATE_EPOCH and command line options can't be used at
+#   the same time to set timestamp(s)". Do NOT set that option.
+# The remaining same-commit ISO differences are therefore NOT chroot mtimes;
+# they are in ISO-level/bootloader metadata or file contents. See
+# docs/architecture/STATUS.md for the diffoscope investigation.
 SANORA_BUILD_ID="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)-${SOURCE_DATE_EPOCH}"
 export SANORA_BUILD_ID
 export SANORA_SKIP_NETWORK_CHECK="$SKIP_NETWORK"

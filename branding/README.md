@@ -9,7 +9,7 @@ desktop all consistently say "SANORA OS" using original assets.
 | File | Purpose | Format |
 |---|---|---|
 | `sanora-logo.svg` / `.png` | Canonical mark: a stylised "S" ribbon with one accent node | SVG source + 256×256 PNG |
-| `sanora-wallpaper.svg` / `.png` | Abstract dark-teal wallpaper | SVG source + 1920×1080 PNG |
+| `sanora-wallpaper.svg` / `.png` | Abstract dark-teal wallpaper | SVG source + 1920×1080 PNG; shipped in the image as `sanora-default.svg` / `.png` (the canonical name referenced by the KDE Global Theme and `/etc/xdg` defaults) |
 | `iso/README.txt` | Text shown at the root of the bootable ISO medium | plain text |
 | `iso/disk-info` | ISO `.disk/info` identification string | one line |
 
