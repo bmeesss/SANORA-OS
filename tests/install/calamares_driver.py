@@ -183,27 +183,55 @@ def type_into(item: dict, text: str) -> None:
     log(f"  typed via xdotool: {item['name']!r}")
 
 
+def pick_window():
+    """Find Calamares' real top-level X window.
+
+    `xdotool search --name Calamares` can return a 3x3 hidden helper window
+    (observed in run 41540769895); focusing that fails with BadMatch. Pick a
+    plausible main window by geometry instead.
+    """
+    candidates = []
+    for pattern in ("Calamares", "SANORA", "calamares"):
+        candidates += xdo("search", "--onlyvisible", "--name", pattern).split()
+    candidates += xdo("search", "--onlyvisible", "--class", "calamares").split()
+    candidates += xdo("search", "--onlyvisible", "--name", ".*").split()
+    seen, best = set(), None
+    for wid in candidates:
+        if wid in seen:
+            continue
+        seen.add(wid)
+        raw = xdo("getwindowgeometry", "--shell", wid)
+        geom = {}
+        for line in raw.splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                geom[k] = v.strip()
+        try:
+            w = int(geom.get("WIDTH", "0")); h = int(geom.get("HEIGHT", "0"))
+        except ValueError:
+            continue
+        if w < 300 or h < 200:
+            continue
+        name = xdo("getwindowname", wid)
+        area = w * h
+        log(f"window candidate {wid}: {w}x{h} name={name!r}")
+        if best is None or area > best[2]:
+            best = (wid, geom, area)
+    return (best[0], best[1]) if best else (None, {})
+
+
 def keyboard_fallback(args, values, finish, steps):
     """Drive Calamares with its documented '&Next' mnemonic when AT-SPI is
     unavailable. Sequence is Debian 13's settings.conf: welcome, locale,
     keyboard, partition, users, summary. No hardcoded screen coordinates."""
-    ids = xdo("search", "--name", "Calamares").split()
-    if not ids:
-        ids = xdo("search", "--name", "SANORA").split()
-    if ids:
-        xdo("windowactivate", "--sync", ids[0])
-        xdo("windowfocus", "--sync", ids[0])
-        log(f"activated window {ids[0]}")
+    wid, geom = pick_window()
+    if wid:
+        xdo("windowactivate", "--sync", wid)
+        log(f"activated window {wid}")
     else:
-        log("WARNING: could not find Calamares window; sending keys to focus")
+        log("WARNING: could not find Calamares main window; keys go to focus")
     log(f"active window: {xdo('getactivewindow', 'getwindowname')!r}")
     log(f"XAUTHORITY={os.environ.get('XAUTHORITY', '<unset>')}")
-    geom = {}
-    geom_raw = xdo("getwindowgeometry", "--shell", ids[0]) if ids else ""
-    for line in geom_raw.splitlines():
-        if "=" in line:
-            k, v = line.split("=", 1)
-            geom[k] = v.strip()
     log(f"window geometry: {geom!r}")
 
     def click_next():
