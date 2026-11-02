@@ -1,0 +1,9 @@
+SANORA OS installation-validation trigger.
+
+Pushing a change to THIS file triggers .github/workflows/install.yml, which
+downloads the ISO artifact from the run named below and performs a real
+Calamares installation in a disposable QEMU VM, followed by a reboot into the
+installed system. No ISO rebuild is needed, so the GUI automation can be
+iterated quickly.
+
+source-run-id: 41469346725

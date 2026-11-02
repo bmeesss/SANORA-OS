@@ -46,7 +46,17 @@ for required in \
     "$REPO_ROOT/branding/sanora-wallpaper.png" \
     "$REPO_ROOT/installer/calamares/branding/sanora/branding.desc" \
     "$REPO_ROOT/installer/calamares/branding/sanora/show.qml" \
-    "$REPO_ROOT/installer/calamares/modules/partition.conf"
+    "$REPO_ROOT/installer/calamares/modules/partition.conf" \
+    "$REPO_ROOT/branding/plasma/look-and-feel/metadata.json.in" \
+    "$REPO_ROOT/branding/plasma/look-and-feel/defaults.in" \
+    "$REPO_ROOT/branding/plasma/look-and-feel/org.kde.plasma.desktop-layout.js" \
+    "$REPO_ROOT/branding/plasma/colors/SANORALight.colors" \
+    "$REPO_ROOT/branding/plasma/colors/SANORADark.colors" \
+    "$REPO_ROOT/branding/plasma/desktoptheme/metadata.json" \
+    "$REPO_ROOT/branding/plasma/desktoptheme/plasmarc" \
+    "$REPO_ROOT/branding/plasma/icons/index.theme.in" \
+    "$REPO_ROOT/branding/plasma/icons/sanora-launcher.svg" \
+    "$REPO_ROOT/tests/install/calamares_driver.py"
 do
     if [ ! -e "$required" ]; then
         echo "build-package: required input missing: $required" >&2
@@ -124,6 +134,63 @@ cp "$REPO_ROOT/branding/sanora-logo.png"        "$TMP/usr/share/sanora/branding/
 cp "$REPO_ROOT/branding/sanora-wallpaper.svg"   "$TMP/usr/share/sanora/wallpapers/"
 cp "$REPO_ROOT/branding/sanora-wallpaper.png"   "$TMP/usr/share/sanora/wallpapers/"
 
+# 4b. Original KDE Plasma identity (KPackage Global Themes, color schemes,
+#     Plasma desktop theme and icon themes). Generated from templates so the
+#     light and dark variants cannot drift out of sync.
+PLASMA="$REPO_ROOT/branding/plasma"
+LAF="$TMP/usr/share/plasma/look-and-feel"
+ICONS="$TMP/usr/share/icons"
+mkdir -p "$LAF" "$ICONS" \
+         "$TMP/usr/share/color-schemes" \
+         "$TMP/usr/share/plasma/desktoptheme/sanora"
+
+create_look_and_feel() {
+    local id="$1" name="$2" description="$3" colors="$4" icons="$5"
+    local dest="$LAF/$id"
+    mkdir -p "$dest/contents/layouts"
+    sed -e "s|@THEME_ID@|${id}|g" \
+        -e "s|@THEME_NAME@|${name}|g" \
+        -e "s|@THEME_DESCRIPTION@|${description}|g" \
+        "$PLASMA/look-and-feel/metadata.json.in" > "$dest/metadata.json"
+    sed -e "s|@THEME_ID@|${id}|g" \
+        -e "s|@COLOR_SCHEME@|${colors}|g" \
+        -e "s|@ICON_THEME@|${icons}|g" \
+        "$PLASMA/look-and-feel/defaults.in" > "$dest/contents/defaults"
+    cp "$PLASMA/look-and-feel/org.kde.plasma.desktop-layout.js" \
+       "$dest/contents/layouts/org.kde.plasma.desktop-layout.js"
+}
+create_look_and_feel "org.sanora.light.desktop" "SANORA" \
+    "Original SANORA OS light desktop experience" "SANORALight" "sanora"
+create_look_and_feel "org.sanora.dark.desktop" "SANORA Dark" \
+    "Original SANORA OS dark desktop experience" "SANORADark" "sanora-dark"
+
+cp "$PLASMA/colors/SANORALight.colors" "$TMP/usr/share/color-schemes/"
+cp "$PLASMA/colors/SANORADark.colors" "$TMP/usr/share/color-schemes/"
+
+cp "$PLASMA/desktoptheme/metadata.json" "$TMP/usr/share/plasma/desktoptheme/sanora/"
+cp "$PLASMA/desktoptheme/plasmarc"      "$TMP/usr/share/plasma/desktoptheme/sanora/"
+
+create_icon_theme() {
+    local id="$1" name="$2" inherits="$3"
+    local dest="$ICONS/$id/scalable/apps"
+    mkdir -p "$dest"
+    sed -e "s|@ICON_ID@|${id}|g" \
+        -e "s|@ICON_NAME@|${name}|g" \
+        -e "s|@ICON_INHERITS@|${inherits}|g" \
+        "$PLASMA/icons/index.theme.in" > "$ICONS/$id/index.theme"
+    cp "$PLASMA/icons/sanora-launcher.svg" "$dest/start-here.svg"
+    cp "$PLASMA/icons/sanora-launcher.svg" "$dest/start-here-kde.svg"
+}
+create_icon_theme "sanora"      "SANORA"      "breeze"
+create_icon_theme "sanora-dark" "SANORA Dark" "breeze-dark"
+
+# 4c. Installer GUI automation driver. Shipped in the development ISO so a
+#     disposable QEMU VM can complete a real installation without network
+#     access to the test harness. Not needed by a production image.
+mkdir -p "$TMP/usr/share/sanora/tests"
+cp "$REPO_ROOT/tests/install/calamares_driver.py" \
+   "$TMP/usr/share/sanora/tests/calamares_driver.py"
+
 # 5. Calamares branding component (Debian's settings.conf/module configs are
 #    reused; hook 0020 only switches the single `branding` key).
 cp "$REPO_ROOT/installer/calamares/branding/sanora/branding.desc" \
@@ -140,7 +207,8 @@ cp "$STAGE_SRC/DEBIAN/copyright" "$TMP/usr/share/doc/sanora-base/copyright"
 # 6. Permissions.
 chmod 0755 "$TMP/DEBIAN/preinst" "$TMP/DEBIAN/postrm" "$TMP/usr/bin/sanora-info"
 find "$TMP/usr" -type f -exec chmod 0644 {} +
-chmod 0755 "$TMP/usr/bin/sanora-info"
+chmod 0755 "$TMP/usr/bin/sanora-info" \
+           "$TMP/usr/share/sanora/tests/calamares_driver.py"
 find "$TMP/etc" -type f -exec chmod 0644 {} +
 
 # dpkg-deb records file mtimes in the data tarball. Clamp them to

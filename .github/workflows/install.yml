@@ -1,0 +1,163 @@
+name: Installation validation (fast iteration)
+
+# Runs the real Calamares installation against an ISO produced by an earlier
+# `iso.yml` run, so the GUI automation can be improved without a 30-minute ISO
+# rebuild. The source run id is read from .github/INSTALL_TEST_TRIGGER.
+
+on:
+  push:
+    branches: [ "arena/fa064594-sanora-os" ]
+    paths:
+      - ".github/INSTALL_TEST_TRIGGER"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  install:
+    name: Install SANORA into a disposable QEMU VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: debian:trixie
+      options: --privileged
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install VM dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            qemu-system-x86 ovmf qemu-utils netpbm python3-pexpect \
+            curl ca-certificates coreutils findutils procps file
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read source run id
+        id: src
+        run: |
+          RID="$(grep -oE 'source-run-id: *[0-9]+' .github/INSTALL_TEST_TRIGGER | awk '{print $2}')"
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "Source ISO run: $RID"
+
+      - name: Download ISO artifact from source run
+        uses: actions/download-artifact@v4
+        with:
+          name: sanora-iso-and-evidence
+          run-id: ${{ steps.src.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/source-artifact
+
+      - name: Locate ISO
+        id: iso
+        run: |
+          ISO="$(find /tmp/source-artifact -name '*.iso' -print -quit)"
+          test -n "$ISO"
+          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
+          echo "ISO: $ISO ($(stat -c %s "$ISO") bytes)"
+          sha256sum "$ISO"
+
+      - name: Installation - plain UEFI/GPT/ext4
+        id: plain
+        run: |
+          set +e
+          python3 tests/install/qemu_install.py \
+            --iso "${{ steps.iso.outputs.iso }}" \
+            --out out/install-plain --mode plain \
+            --driver tests/install/calamares_driver.py --timeout 2400
+          rc=$?
+          set -e
+          cat out/install-plain/install-validation.json || true
+          echo "::notice::plain install harness exit: $rc"
+          exit "$rc"
+
+      - name: Installation - LUKS2
+        if: always()
+        id: luks
+        run: |
+          set +e
+          python3 tests/install/qemu_install.py \
+            --iso "${{ steps.iso.outputs.iso }}" \
+            --out out/install-luks --mode luks \
+            --driver tests/install/calamares_driver.py --timeout 2400
+          rc=$?
+          set -e
+          cat out/install-luks/install-validation.json || true
+          echo "::notice::LUKS2 install harness exit: $rc"
+          exit "$rc"
+
+      - name: Publish installation evidence as a check run
+        if: always()
+        env:
+          API_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -e
+          python3 - <<'PY'
+          import base64, json, os, pathlib
+          wanted = [
+              "out/install-plain/install-validation.json",
+              "out/install-plain/install-driver-log.txt",
+              "out/install-plain/installed-checks.txt",
+              "out/install-luks/install-validation.json",
+              "out/install-luks/install-driver-log.txt",
+              "out/install-luks/installed-checks.txt",
+          ]
+          parts = []
+          for name in wanted:
+              p = pathlib.Path(name)
+              if p.is_file():
+                  body = p.read_text(errors="replace")
+                  if len(body) > 14000:
+                      body = "...[truncated]...\n" + body[-14000:]
+                  parts.append(f"===== {name} =====\n{body}")
+          # One downscaled screenshot per phase, base64 for local inspection.
+          budget = 60000 - sum(len(p) for p in parts) - 2000
+          for label in ("install-01-calamares-welcome", "install-02-finished",
+                        "installed-00-desktop", "installed-01-desktop"):
+              for base in ("out/install-plain", "out/install-luks"):
+                  b64 = pathlib.Path(base) / f"{label}.png.b64"
+                  if b64.is_file() and budget > 12000:
+                      data = b64.read_text()
+                      if len(data) < budget:
+                          parts.append(f"===== SCREENSHOT {base}/{label} =====\n{data}")
+                          budget -= len(data) + 200
+          text = "\n".join(parts) if parts else "(no installation evidence)"
+          text = text[-60000:]
+          body = {
+              "name": "SANORA installation diagnostics",
+              "head_sha": os.environ["HEAD_SHA"],
+              "status": "completed",
+              "conclusion": "neutral",
+              "output": {
+                  "title": "SANORA installation validation (run " + os.environ["RUN_ID"] + ")",
+                  "summary": "Calamares install + reboot evidence, logs and screenshots.",
+                  "text": text,
+              },
+          }
+          pathlib.Path("/tmp/install-check.json").write_text(json.dumps(body))
+          print("diagnostic payload bytes:", len(json.dumps(body)))
+          PY
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $API_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/install-check.json \
+            "https://api.github.com/repos/$REPOSITORY/check-runs" > /tmp/install-check-response.json
+          python3 -c "import json;print('check-run id',json.load(open('/tmp/install-check-response.json'))['id'])"
+
+      - name: Upload installation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanora-install-evidence
+          path: out/
+          if-no-files-found: warn
+          retention-days: 14
