@@ -7,5 +7,6 @@ live-tools
 user-setup
 sudo
 locales
+gettext-base
 debian-archive-keyring
 ca-certificates
