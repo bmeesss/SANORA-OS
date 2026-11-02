@@ -228,6 +228,32 @@ CALAMARES_CHECKS = (
     "echo CALAMARES_DONE"
 )
 
+# Verify the SANORA Global Theme resolves for a CLEAN user account (no
+# ~/.config), not just for the live session. KDE reads defaults from
+# $XDG_CONFIG_DIRS (normally /etc/xdg).
+THEME_CHECKS = (
+    "mkdir -p /tmp/sanora-clean/.config; "
+    "HOME=/tmp/sanora-clean XDG_CONFIG_HOME=/tmp/sanora-clean/.config "
+    "kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage; echo SEP; "
+    "HOME=/tmp/sanora-clean XDG_CONFIG_HOME=/tmp/sanora-clean/.config "
+    "kreadconfig6 --file kdeglobals --group General --key ColorScheme; echo SEP; "
+    "HOME=/tmp/sanora-clean XDG_CONFIG_HOME=/tmp/sanora-clean/.config "
+    "kreadconfig6 --file kdeglobals --group Icons --key Theme; echo SEP; "
+    "ls -l /usr/share/plasma/look-and-feel/org.sanora.light.desktop/metadata.json "
+    "/usr/share/plasma/look-and-feel/org.sanora.dark.desktop/metadata.json "
+    "/usr/share/plasma/look-and-feel/org.sanora.light.desktop/contents/defaults "
+    "/usr/share/plasma/look-and-feel/org.sanora.light.desktop/contents/layouts/org.kde.plasma.desktop-layout.js "
+    "/usr/share/color-schemes/SANORALight.colors /usr/share/color-schemes/SANORADark.colors "
+    "/usr/share/icons/sanora/index.theme /usr/share/icons/sanora-dark/index.theme "
+    "/usr/share/plasma/desktoptheme/sanora/metadata.json "
+    "/usr/share/sanora/wallpapers/sanora-default.png 2>&1; echo SEP; "
+    "grep -n 'LookAndFeelPackage\\|ColorScheme\\|Image=' "
+    "/usr/share/plasma/look-and-feel/org.sanora.light.desktop/contents/defaults; echo SEP; "
+    "grep -n 'location\\|alignment\\|height\\|sanora-wallpaper' "
+    "/usr/share/plasma/look-and-feel/org.sanora.light.desktop/contents/layouts/org.kde.plasma.desktop-layout.js; "
+    "echo THEME_DONE"
+)
+
 # Baseline measurements only -- explicitly NOT performance achievements.
 PERF_CHECKS = (
     "systemd-analyze; echo SEP; "
@@ -548,6 +574,33 @@ def main() -> int:
                 )
             except (pexpect.TIMEOUT, pexpect.EOF) as exc:
                 result["errors"].append(f"performance baseline checks failed: {exc}")
+
+            try:
+                theme_text = guest_command(
+                    child,
+                    "echo THEME_BEGIN; " + THEME_CHECKS,
+                    "THEME", timeout=120,
+                )
+                (outdir / "theme-checks.txt").write_text(
+                    theme_text, encoding="utf-8"
+                )
+                ts = theme_text.split("SEP")
+                result["evidence"]["theme_checks"] = str(outdir / "theme-checks.txt")
+                result["checks"]["theme_on_clean_account"] = (
+                    "org.sanora.light.desktop" in (ts[0] if ts else "")
+                    and "SANORALight" in (ts[1] if len(ts) > 1 else "")
+                    and "sanora" in (ts[2] if len(ts) > 2 else "").lower()
+                )
+                result["checks"]["theme_assets_present"] = (
+                    "No such file" not in (ts[3] if len(ts) > 3 else "")
+                    and "org.sanora" in theme_text
+                )
+                result["checks"]["theme_layout_configured"] = (
+                    "bottom" in (ts[5] if len(ts) > 5 else "")
+                    and "sanora-wallpaper" in (ts[5] if len(ts) > 5 else "")
+                )
+            except (pexpect.TIMEOUT, pexpect.EOF) as exc:
+                result["errors"].append(f"theme checks failed: {exc}")
 
         # Desktop screenshot (whatever is actually on the framebuffer).
         desktop_ppm = outdir / "desktop.ppm"

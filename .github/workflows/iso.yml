@@ -32,12 +32,15 @@ jobs:
   iso:
     name: Build ISO and boot it in QEMU
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
     container:
       image: debian:trixie
       options: --privileged
     env:
       DEBIAN_FRONTEND: noninteractive
+      # Generate an ephemeral development GPG key for the signed APT repo.
+      # A release build must set SANORA_REPO_KEY_ID to an offline-managed key.
+      SANORA_REPO_AUTO_KEY: "1"
     steps:
       - name: Install build and boot-test dependencies
         run: |
@@ -48,7 +51,8 @@ jobs:
             python3-pexpect curl ca-certificates coreutils findutils procps \
             cpio apt-utils bzip2 cryptsetup file rsync wget xz-utils \
             e2fsprogs parted systemd-container gzip zstd \
-            qemu-system-x86 ovmf qemu-utils netpbm
+            qemu-system-x86 ovmf qemu-utils netpbm \
+            gnupg diffoscope xorriso
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -150,6 +154,39 @@ jobs:
           print(json.dumps(report, indent=2, sort_keys=True))
           PY
 
+      - name: Reproducibility - diffoscope and file-level diff
+        if: always()
+        run: |
+          set +e
+          SECOND_ISO="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
+          if [ -f /tmp/sanora-first.iso ] && [ -n "$SECOND_ISO" ]; then
+            echo "=== extracting squashfs from both ISOs ==="
+            xorriso -osirrox on -indev /tmp/sanora-first.iso \
+              -extract /live/filesystem.squashfs /tmp/fs1.squashfs 2>&1 | tail -3
+            xorriso -osirrox on -indev "$SECOND_ISO" \
+              -extract /live/filesystem.squashfs /tmp/fs2.squashfs 2>&1 | tail -3
+            rm -rf /tmp/fs1 /tmp/fs2
+            unsquashfs -d /tmp/fs1 /tmp/fs1.squashfs >/dev/null 2>&1
+            unsquashfs -d /tmp/fs2 /tmp/fs2.squashfs >/dev/null 2>&1
+            echo "=== file metadata differences (path|type|size|mtime) ==="
+            (cd /tmp/fs1 && find . -printf '%P|%y|%s|%T@\n' | sort) > /tmp/list1.txt
+            (cd /tmp/fs2 && find . -printf '%P|%y|%s|%T@\n' | sort) > /tmp/list2.txt
+            diff /tmp/list1.txt /tmp/list2.txt > out/squashfs-metadata-diff.txt 2>&1
+            head -80 out/squashfs-metadata-diff.txt
+            echo "total differing metadata lines: $(wc -l < out/squashfs-metadata-diff.txt)"
+            echo "=== diffoscope (bounded) ==="
+            timeout 900 diffoscope --max-text-report-size 150000 \
+              /tmp/sanora-first.iso "$SECOND_ISO" > out/diffoscope.txt 2>&1
+            echo "diffoscope exit: $?" >> out/diffoscope.txt
+            head -100 out/diffoscope.txt
+            # Free disk before the Debian baseline ISO is downloaded.
+            rm -rf /tmp/fs1 /tmp/fs2 /tmp/fs1.squashfs /tmp/fs2.squashfs
+          else
+            echo "ISO pair not available" > out/diffoscope.txt
+            echo "ISO pair not available" > out/squashfs-metadata-diff.txt
+          fi
+          set -e
+
       - name: Show build metadata
         if: always()
         run: |
@@ -185,6 +222,29 @@ jobs:
           echo "::notice::BIOS boot harness exit: $rc"
           exit "$rc"
 
+      - name: Performance baseline - unmodified Debian 13 KDE
+        if: always()
+        run: |
+          set +e
+          URL="https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/debian-live-13.7.0-amd64-kde.iso"
+          echo "Downloading stock Debian KDE live ISO for an apples-to-apples baseline"
+          curl -fL --retry 2 --max-time 1500 -o /tmp/debian-kde.iso "$URL"
+          if [ -s /tmp/debian-kde.iso ]; then
+            echo "Debian ISO size: $(stat -c %s /tmp/debian-kde.iso)"
+            python3 tests/boot/qemu_baseline.py \
+              --debian-iso /tmp/debian-kde.iso \
+              --out out/baseline \
+              --sanora-boot out/boot-uefi/boot-validation.json \
+              --sanora-perf out/boot-uefi/performance-baseline.txt \
+              --timeout 600
+            cat out/baseline/baseline-comparison.json || true
+          else
+            echo "Debian ISO download failed; baseline NOT measured" \
+              > out/baseline-comparison.json
+          fi
+          rm -f /tmp/debian-kde.iso
+          set -e
+
       - name: Upload ISO, metadata and boot evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -215,11 +275,17 @@ jobs:
               "out/boot-uefi/locale-checks.txt",
               "out/boot-uefi/calamares-checks.txt",
               "out/boot-uefi/performance-baseline.txt",
+              "out/boot-uefi/theme-checks.txt",
               "out/boot-uefi/serial.log",
               "out/build-metadata.json",
               "out/reproducibility.json",
               "out/byte-diff.txt",
               "out/byte-diff-context.txt",
+              "out/diffoscope.txt",
+              "out/squashfs-metadata-diff.txt",
+              "out/baseline/baseline-comparison.json",
+              "out/baseline/debian-baseline.txt",
+              "build/work/repo-metadata.json",
               "build/work/versions.json",
               "build/work/build-full.log",
           ]
@@ -232,6 +298,24 @@ jobs:
                   if len(body) > 12000:
                       body = "...[truncated]...\n" + body[-12000:]
                   parts.append(f"===== {name} =====\n{body}")
+          # Downscaled desktop screenshot, base64, for local visual inspection.
+          import base64, subprocess as sp
+          ppm = pathlib.Path("out/boot-uefi/desktop.ppm")
+          if ppm.is_file():
+              try:
+                  small = sp.run(
+                      ["pnmscale", "-xsize=360", "-ysize=225", str(ppm)],
+                      capture_output=True, check=True,
+                  ).stdout
+                  png = sp.run(
+                      ["pnmtopng"], input=small, capture_output=True, check=True
+                  ).stdout
+                  b64 = base64.b64encode(png).decode()
+                  if len(b64) < 22000:
+                      parts.append("===== DESKTOP SCREENSHOT (base64 PNG) =====\n" + b64)
+                      print("desktop screenshot base64 bytes:", len(b64))
+              except (OSError, sp.CalledProcessError) as exc:
+                  print("screenshot downscale skipped:", exc)
           text = "\n".join(parts) if parts else "(no build/boot evidence produced)"
           # GitHub check-run output.text is limited to 65535 characters.
           text = text[-60000:]
