@@ -10,3 +10,4 @@ source-run-id: 41528961532
 # install iteration 2 (sendkey fix)
 # install iteration 3 (AT-SPI bus + keyboard fallback)
 # install iteration 4 (X11 diagnostics + coordinate click)
+# install iteration 5 (xcb platform)
