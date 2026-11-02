@@ -379,6 +379,17 @@ def main():
             driver_path = "/tmp/calamares_driver.py"
             result["evidence"]["driver_uploaded_from_checkout"] = True
 
+        # Start the AT-SPI bus BEFORE Calamares: Qt6 only registers its
+        # accessibility bridge when the bus exists at application startup.
+        guest_cmd(
+            child,
+            "pgrep -f at-spi-bus-launcher >/dev/null 2>&1 || "
+            "(/usr/libexec/at-spi-bus-launcher >/dev/null 2>&1 &); "
+            "pgrep -f at-spi2-registryd >/dev/null 2>&1 || "
+            "(/usr/libexec/at-spi2-registryd >/dev/null 2>&1 &); sleep 2",
+            "ATSPI", timeout=30,
+        )
+
         # Discover the SDDM Xauthority and start Calamares with accessibility on.
         xauth = guest_cmd(
             child,

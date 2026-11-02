@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -77,17 +78,40 @@ def xdo(*args: str) -> str:
         return ""
 
 
+_APP_LIST_LOGGED = False
+
+
 def app_node():
+    """Find the Calamares application in the AT-SPI tree.
+
+    Qt6 applications sometimes register with an empty or product-derived
+    accessible name, so also accept a frame whose name mentions Calamares or
+    SANORA. Log the application list once for CI diagnosis.
+    """
     import pyatspi
 
+    global _APP_LIST_LOGGED
     desktop = pyatspi.Registry.getDesktop(0)
+    names = []
     for app in desktop:
         try:
-            name = (app.name or "").lower()
+            name = app.name or ""
+        except Exception:  # noqa: BLE001
+            name = ""
+        names.append(name)
+        if "calamares" in name.lower():
+            return app
+    if not _APP_LIST_LOGGED:
+        log(f"AT-SPI applications: {names!r}")
+        _APP_LIST_LOGGED = True
+    for app in desktop:
+        try:
+            for child in app:
+                label = f"{child.name or ''} {child.description or ''}".lower()
+                if "calamares" in label or "sanora" in label:
+                    return app
         except Exception:  # noqa: BLE001
             continue
-        if "calamares" in name:
-            return app
     return None
 
 
@@ -157,6 +181,79 @@ def type_into(item: dict, text: str) -> None:
     log(f"  typed via xdotool: {item['name']!r}")
 
 
+def keyboard_fallback(args, values, finish, steps):
+    """Drive Calamares with its documented '&Next' mnemonic when AT-SPI is
+    unavailable. Sequence is Debian 13's settings.conf: welcome, locale,
+    keyboard, partition, users, summary. No hardcoded screen coordinates."""
+    ids = xdo("search", "--name", "Calamares").split()
+    if not ids:
+        ids = xdo("search", "--name", "SANORA").split()
+    if ids:
+        xdo("windowactivate", "--sync", ids[0])
+        log(f"activated window {ids[0]}")
+    else:
+        log("WARNING: could not find Calamares window; sending keys to focus")
+
+    def next_page(label):
+        xdo("key", "--clearmodifiers", "alt+n")
+        time.sleep(1)
+        xdo("key", "--clearmodifiers", "Return")
+        time.sleep(4)
+        steps.append(f"advanced past {label}")
+        log(f"advanced past {label}")
+
+    next_page("welcome")
+    next_page("locale")
+    next_page("keyboard")
+    next_page("partition")
+
+    # Users page: the five text fields in tab order.
+    sequence = [
+        ("Your Full Name", values["user"]),
+        ("login", values["username"]),
+        ("Computer Name", values["host"]),
+        ("Password", values["password"]),
+        ("Repeat Password", values["password"]),
+    ]
+    for label, text in sequence:
+        xdo("type", "--clearmodifiers", "--delay", "25", text)
+        xdo("key", "--clearmodifiers", "Tab")
+        steps.append(f"typed {label}")
+        log(f"typed {label}")
+    time.sleep(1)
+    next_page("users -> summary")
+    # Summary page: the button label is "Install" (ExecutionViewStep).
+    xdo("key", "--clearmodifiers", "alt+n")
+    time.sleep(2)
+    xdo("key", "--clearmodifiers", "Return")
+    steps.append("clicked Install")
+    log("clicked Install")
+
+    # Wait for the exec phase to create partitions on the target disk, then
+    # allow generous time for unpackfs/bootloader before the host reboots.
+    deadline = time.time() + min(args.timeout, 900)
+    partitioned = False
+    while time.time() < deadline:
+        out = subprocess.run(
+            ["lsblk", "-no", "FSTYPE", "/dev/vda"],
+            capture_output=True, text=True,
+        ).stdout
+        if "ext4" in out or "crypto_LUKS" in out or "vfat" in out:
+            partitioned = True
+            log("target disk now has filesystems")
+            break
+        time.sleep(10)
+    if partitioned:
+        log("waiting for unpackfs/bootloader jobs to finish")
+        time.sleep(420)
+    finish(
+        "SUCCESS" if partitioned else "FAILED",
+        "keyboard fallback: partitions created" if partitioned
+        else "keyboard fallback: no target filesystems appeared",
+        steps,
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--encrypt", action="store_true")
@@ -169,6 +266,7 @@ def main() -> int:
     open(LOG_PATH, "w", encoding="utf-8").close()
     values = {
         "user": f"{args.user} User",
+        "username": args.user,
         "host": f"{args.user}-pc",
         "password": args.password,
         "luks": args.luks_passphrase,
@@ -179,16 +277,37 @@ def main() -> int:
     except ImportError as exc:
         finish("FAILED", f"pyatspi unavailable: {exc}", [])
 
+    # Start the AT-SPI bus/registry if the live session did not. Qt registers
+    # its accessibility bridge only when the bus is available at startup.
+    for helper in ("/usr/libexec/at-spi-bus-launcher",
+                   "/usr/libexec/at-spi2-registryd"):
+        if pathlib.Path(helper).exists():
+            try:
+                subprocess.Popen(
+                    [helper], stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, env=os.environ.copy(),
+                )
+            except OSError:
+                pass
+    time.sleep(2)
+
     deadline = time.time() + args.timeout
     steps: list[str] = []
     last_signature = ""
     encrypted_clicked = False
+    no_app_since = time.time()
 
     while time.time() < deadline:
         app = app_node()
         if app is None:
             time.sleep(2)
+            # If AT-SPI never exposes Calamares, fall back to keyboard
+            # navigation using the documented '&Next' mnemonic (Alt+N).
+            if time.time() - no_app_since > 25:
+                log("AT-SPI unavailable; switching to keyboard fallback")
+                return keyboard_fallback(args, values, finish, steps)
             continue
+        no_app_since = time.time()
         items = walk(app)
         signature = "|".join(f"{i['role']}:{i['name']}" for i in items[:80])
         if signature != last_signature:
