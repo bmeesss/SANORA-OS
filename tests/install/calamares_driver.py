@@ -72,6 +72,8 @@ def xdo(*args: str) -> str:
             ["xdotool", *args], env=env, capture_output=True,
             text=True, timeout=30,
         )
+        if proc.returncode != 0:
+            log(f"xdotool {args[:3]} rc={proc.returncode} err={proc.stderr.strip()[:200]!r}")
         return proc.stdout.strip()
     except (OSError, subprocess.TimeoutExpired) as exc:
         log(f"xdotool {args[:2]} failed: {exc}")
@@ -190,15 +192,36 @@ def keyboard_fallback(args, values, finish, steps):
         ids = xdo("search", "--name", "SANORA").split()
     if ids:
         xdo("windowactivate", "--sync", ids[0])
+        xdo("windowfocus", "--sync", ids[0])
         log(f"activated window {ids[0]}")
     else:
         log("WARNING: could not find Calamares window; sending keys to focus")
+    log(f"active window: {xdo('getactivewindow', 'getwindowname')!r}")
+    log(f"XAUTHORITY={os.environ.get('XAUTHORITY', '<unset>')}")
+    geom = {}
+    for line in xdo("getwindowgeometry", "--shell", ids[0] if ids else "").splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            geom[k] = v.strip()
+    log(f"window geometry: {geom!r}")
+
+    def click_next():
+        # Calamares' QWidget navigation puts Next near the bottom-right, left
+        # of Quit. Click by position derived from the real window geometry.
+        try:
+            x = int(geom.get("X", "0")); y = int(geom.get("Y", "0"))
+            w = int(geom.get("WIDTH", "800")); h = int(geom.get("HEIGHT", "520"))
+            xdo("mousemove", str(x + w - 150), str(y + h - 34), "click", "1")
+        except (ValueError, TypeError):
+            pass
 
     def next_page(label):
         xdo("key", "--clearmodifiers", "alt+n")
         time.sleep(1)
         xdo("key", "--clearmodifiers", "Return")
-        time.sleep(4)
+        time.sleep(1)
+        click_next()
+        time.sleep(5)
         steps.append(f"advanced past {label}")
         log(f"advanced past {label}")
 
@@ -224,14 +247,16 @@ def keyboard_fallback(args, values, finish, steps):
     next_page("users -> summary")
     # Summary page: the button label is "Install" (ExecutionViewStep).
     xdo("key", "--clearmodifiers", "alt+n")
-    time.sleep(2)
+    time.sleep(1)
     xdo("key", "--clearmodifiers", "Return")
+    time.sleep(1)
+    click_next()
     steps.append("clicked Install")
     log("clicked Install")
 
     # Wait for the exec phase to create partitions on the target disk, then
     # allow generous time for unpackfs/bootloader before the host reboots.
-    deadline = time.time() + min(args.timeout, 900)
+    deadline = time.time() + min(args.timeout, 420)
     partitioned = False
     while time.time() < deadline:
         out = subprocess.run(
