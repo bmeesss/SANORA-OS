@@ -6,4 +6,4 @@ Calamares installation in a disposable QEMU VM, followed by a reboot into the
 installed system. No ISO rebuild is needed, so the GUI automation can be
 iterated quickly.
 
-source-run-id: 41469346725
+source-run-id: 41519403741
