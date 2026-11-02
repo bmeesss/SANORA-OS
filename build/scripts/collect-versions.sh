@@ -72,3 +72,15 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
 print("collect-versions: wrote " + sys.argv[1])
 print(json.dumps(data, indent=2, sort_keys=True))
 PY
+
+# Deterministic, cheap listing of the built chroot. Two builds of the same
+# commit can be compared by diffing these files instead of extracting two
+# multi-gigabyte squashfs images on the CI runner (which exhausts its disk).
+CHROOT="$REPO_ROOT/build/work/live/chroot"
+FILE_LIST="$REPO_ROOT/out/chroot-file-list.txt"
+if [ -d "$CHROOT" ]; then
+    mkdir -p "$(dirname "$FILE_LIST")"
+    ( cd "$CHROOT" && find . -printf '%P|%y|%s|%T@|%m|%U|%G\n' \
+        | LC_ALL=C sort ) > "$FILE_LIST"
+    echo "collect-versions: wrote $FILE_LIST ($(wc -l < "$FILE_LIST") entries)"
+fi
