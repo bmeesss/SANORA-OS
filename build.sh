@@ -149,6 +149,12 @@ for extra in SHA256SUMS sha256sums.txt; do
     fi
 done
 
+log "Step 7a/7 - measure installed component versions"
+# Informational: a failure here is reported as a warning, not hidden as a pass.
+if ! "$SCRIPTS/collect-versions.sh"; then
+    printf 'build.sh: WARNING: version collection failed; build-metadata.json will omit measured versions\n' >&2
+fi
+
 log "Step 7/7 - write build metadata and checksums"
 write_metadata "success" "" || fail "could not write build metadata"
 printf '\nbuild.sh: DONE. Verify the ISO before claiming it boots.\n'

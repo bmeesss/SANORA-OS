@@ -51,6 +51,11 @@ def main() -> int:
     parser.add_argument("--mode", required=True, choices=["build", "config-only"])
     parser.add_argument("--status", required=True, choices=["success", "failed"])
     parser.add_argument("--error", default="", help="failure description")
+    parser.add_argument(
+        "--versions",
+        default=None,
+        help="optional build/work/versions.json measured from the live-build chroot",
+    )
     args = parser.parse_args()
 
     repo = pathlib.Path(args.repo)
@@ -87,6 +92,24 @@ def main() -> int:
             "size_bytes": iso.stat().st_size,
             "sha256": sha256(iso),
         }
+
+    versions_path = pathlib.Path(args.versions) if args.versions else (
+        repo / "build" / "work" / "versions.json"
+    )
+    versions = None
+    if versions_path.is_file():
+        try:
+            versions = json.loads(versions_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            versions = None
+
+    # Exact package versions placed into the ISO by live-build, if present.
+    packages_file = work / "binary.packages"
+    package_count = None
+    if packages_file.is_file():
+        package_count = sum(
+            1 for line in packages_file.read_text(errors="replace").splitlines() if line.strip()
+        )
 
     metadata = {
         "schema": "sanora.build-metadata/1",
@@ -131,6 +154,8 @@ def main() -> int:
             "package_lists_sha256": package_lists,
             "sanora_base_deb": sanora_base,
         },
+        "versions": versions,
+        "installed_package_count": package_count,
         "artifact": iso_info,
         "gates": {
             "nvidia_in_iso": "BLOCKED - ADR-0007 awaiting confirmation",

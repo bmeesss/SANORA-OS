@@ -43,7 +43,10 @@ LB_OPTIONS=(
   "--uefi-secure-boot" "auto"
   "--debian-installer" "none"
   "--debian-installer-gui" "false"
-  "--bootappend-live" "boot=live components locales=${SANORA_DEFAULT_LOCALE} keyboard-layouts=${SANORA_DEFAULT_KEYBOARD} quiet splash"
+  # console=ttyS0 is kept alongside console=tty0 so that headless CI QEMU
+  # boots can be validated over a serial console without changing the normal
+  # graphical boot behaviour. Both consoles receive kernel output.
+  "--bootappend-live" "boot=live components locales=${SANORA_DEFAULT_LOCALE} keyboard-layouts=${SANORA_DEFAULT_KEYBOARD} console=tty0 console=ttyS0,115200 quiet splash"
   "--memtest" "none"
 
   # Firmware comes from Debian's non-free-firmware area. No SANORA-specific or

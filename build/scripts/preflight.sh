@@ -44,7 +44,7 @@ for f in "${REQUIRED_FILES[@]}"; do
     if [ -f "$f" ]; then
         note "asset ok: $f"
     else
-        warn "asset '$f' not found (install syslinux-common)"
+        warn "asset '$f' not found (install the Debian 'isolinux' package)"
     fi
 done
 
