@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "maintainers@sanora.invalid",
+                "Name": "SANORA OS contributors"
+            }
+        ],
+        "Category": "",
+        "Description": "@THEME_DESCRIPTION@",
+        "Id": "@THEME_ID@",
+        "License": "GPLv2+",
+        "Name": "@THEME_NAME@",
+        "Website": "https://github.com/bmeesss/SANORA-OS"
+    },
+    "X-Plasma-APIVersion": "2"
+}

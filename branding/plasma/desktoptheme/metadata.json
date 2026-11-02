@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "maintainers@sanora.invalid",
+                "Name": "SANORA OS contributors"
+            }
+        ],
+        "Category": "",
+        "Description": "Original SANORA Plasma desktop theme; falls back to Breeze upstream",
+        "EnabledByDefault": true,
+        "Id": "sanora",
+        "License": "GPLv2+",
+        "Name": "SANORA",
+        "Version": "0.1",
+        "Website": "https://github.com/bmeesss/SANORA-OS"
+    },
+    "X-Plasma-API": "5.0"
+}

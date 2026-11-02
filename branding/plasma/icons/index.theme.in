@@ -1,0 +1,13 @@
+[Icon Theme]
+Name=@ICON_NAME@
+Comment=Original SANORA OS launcher icon; inherits upstream Breeze
+Inherits=@ICON_INHERITS@
+Directories=scalable/apps
+Example=folder
+
+[scalable/apps]
+Size=48
+Type=Scalable
+Context=Applications
+MinSize=16
+MaxSize=256

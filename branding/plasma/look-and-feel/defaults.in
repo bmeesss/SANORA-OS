@@ -1,0 +1,29 @@
+# KDE Global Theme defaults for SANORA OS.
+# Format: [config-file][group] sections, exactly as used by KDE's
+# Plasma/LookAndFeel KPackage (see KDE plasma-workspace lookandfeel/breeze).
+
+[kdeglobals][KDE]
+widgetStyle=Breeze
+LookAndFeelPackage=@THEME_ID@
+
+[kdeglobals][General]
+ColorScheme=@COLOR_SCHEME@
+
+[kdeglobals][Icons]
+Theme=@ICON_THEME@
+
+[plasmarc][Theme]
+name=sanora
+
+[Wallpaper]
+Image=/usr/share/sanora/wallpapers/sanora-default.png
+
+[kcminputrc][Mouse]
+cursorTheme=breeze_cursors
+
+[kwinrc][org.kde.kdecoration2]
+library=org.kde.breeze
+theme=Breeze
+
+[ksplashrc][KSplash]
+Theme=@THEME_ID@
