@@ -45,7 +45,8 @@ for required in \
     "$REPO_ROOT/branding/sanora-wallpaper.svg" \
     "$REPO_ROOT/branding/sanora-wallpaper.png" \
     "$REPO_ROOT/installer/calamares/branding/sanora/branding.desc" \
-    "$REPO_ROOT/installer/calamares/branding/sanora/show.qml"
+    "$REPO_ROOT/installer/calamares/branding/sanora/show.qml" \
+    "$REPO_ROOT/installer/calamares/modules/partition.conf"
 do
     if [ ! -e "$required" ]; then
         echo "build-package: required input missing: $required" >&2
@@ -66,6 +67,7 @@ mkdir -p \
     "$TMP/etc/xdg" \
     "$TMP/etc/skel/.config" \
     "$TMP/etc/calamares/branding/sanora" \
+    "$TMP/etc/calamares/modules" \
     "$TMP/usr/share/sanora/branding" \
     "$TMP/usr/share/sanora/wallpapers" \
     "$TMP/usr/share/doc/sanora-base"
@@ -108,8 +110,13 @@ cp "$REPO_ROOT/config/system/sanora.conf"         "$TMP/etc/sanora/sanora.conf"
 cp "$REPO_ROOT/config/system/99-sanora-security"  "$TMP/etc/apt/apt.conf.d/99-sanora-security"
 cp "$REPO_ROOT/config/system/10-sanora-user.conf" "$TMP/etc/live/config.conf.d/10-sanora-user.conf"
 cp "$REPO_ROOT/config/desktop/kdeglobals"          "$TMP/etc/xdg/kdeglobals"
+# KDE reads per-user defaults from $XDG_CONFIG_DIRS (normally /etc/xdg) as
+# well as from /etc/skel. The /etc/skel copy alone was overwritten by Plasma
+# on first start (verified in QEMU boot test, build #6), so ship both.
 cp "$REPO_ROOT/config/desktop/plasma-org.kde.plasma.desktop-appletsrc" \
                                                     "$TMP/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc"
+cp "$REPO_ROOT/config/desktop/plasma-org.kde.plasma.desktop-appletsrc" \
+                                                    "$TMP/etc/xdg/plasma-org.kde.plasma.desktop-appletsrc"
 
 # 4. Original branding assets.
 cp "$REPO_ROOT/branding/sanora-logo.svg"        "$TMP/usr/share/sanora/branding/"
@@ -125,6 +132,8 @@ cp "$REPO_ROOT/installer/calamares/branding/sanora/show.qml" \
    "$TMP/etc/calamares/branding/sanora/show.qml"
 cp "$REPO_ROOT/branding/sanora-logo.png" \
    "$TMP/etc/calamares/branding/sanora/sanora-logo.png"
+cp "$REPO_ROOT/installer/calamares/modules/partition.conf" \
+   "$TMP/etc/calamares/modules/partition.conf"
 
 cp "$STAGE_SRC/DEBIAN/copyright" "$TMP/usr/share/doc/sanora-base/copyright"
 

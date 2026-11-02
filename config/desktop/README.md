@@ -7,7 +7,7 @@ forks" rule from the architecture: no upstream source file is modified.
 | Source file | Destination in the image | Purpose |
 |---|---|---|
 | `kdeglobals` | `/etc/xdg/kdeglobals` | KDE reads defaults from `$XDG_CONFIG_DIRS`; this is where a future SANORA Global Theme is selected |
-| `plasma-org.kde.plasma.desktop-appletsrc` | `/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc` | Best-effort default wallpaper for newly created users |
+| `plasma-org.kde.plasma.desktop-appletsrc` | `/etc/skel/.config/` **and** `/etc/xdg/` | Best-effort default wallpaper. `/etc/skel` alone was overwritten by Plasma on first start (verified in QEMU boot test #6), so the KDE system default under `$XDG_CONFIG_DIRS` is shipped as well |
 
 ## Status: partially implemented, NOT boot-tested
 

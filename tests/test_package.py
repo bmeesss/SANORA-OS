@@ -44,6 +44,8 @@ class PackageValidation(unittest.TestCase):
             "etc/calamares/branding/sanora/branding.desc",
             "etc/calamares/branding/sanora/show.qml",
             "etc/calamares/branding/sanora/sanora-logo.png",
+            "etc/calamares/modules/partition.conf",
+            "etc/xdg/plasma-org.kde.plasma.desktop-appletsrc",
             "usr/bin/sanora-info",
             "usr/share/sanora/branding/sanora-logo.svg",
             "usr/share/sanora/branding/sanora-logo.png",

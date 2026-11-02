@@ -33,10 +33,14 @@ modification.
 
 ## What is NOT implemented yet
 
-- **LUKS2 / encryption in the installer.** `cryptsetup` is installed in the
-  package set, but Calamares partition/encryption module configuration has not
-  been reviewed or written. LUKS2 support is therefore `Planned`, not
-  `Implemented`. See `docs/development/SECURITY_BASELINE.md`.
+- **LUKS2 / encryption in the installer.** `modules/partition.conf` is now
+  shipped by `sanora-base` at `/etc/calamares/modules/partition.conf` and sets
+  `luksGeneration: luks2` plus EFI System Partition parameters, using only
+  Calamares' own module keys (see ADR-0010). `cryptsetup` 2:2.7.5-2 and
+  `libxcb-cursor0` are installed, and Calamares has been observed starting and
+  detecting disks in the QEMU VM. **An encrypted installation followed by a
+  reboot has NOT been performed**, so LUKS2 is `Implemented (config) / not
+  validated`. GRUB/LUKS2/Argon2id compatibility remains an open risk.
 - Btrfs + Snapper rollback configuration, OEM setup, online log uploading,
   custom partitioning presets.
 - Any validation by actually booting the ISO and running the installer.

@@ -235,7 +235,10 @@ PERF_CHECKS = (
     "cat /proc/loadavg; echo SEP; "
     "ps -e --no-headers | wc -l; echo SEP; "
     "grep -R 'sanora-wallpaper' $HOME/.config/plasma-org.kde.plasma.desktop-appletsrc "
-    "2>/dev/null || echo NO_WALLPAPER_CONFIG; echo SEP; "
+    "2>/dev/null || echo NO_USER_WALLPAPER_CONFIG; "
+    "test -f /etc/xdg/plasma-org.kde.plasma.desktop-appletsrc && "
+    "grep -q sanora-wallpaper /etc/xdg/plasma-org.kde.plasma.desktop-appletsrc && "
+    "echo SYSTEM_WALLPAPER_DEFAULT_PRESENT || echo NO_SYSTEM_WALLPAPER_DEFAULT; echo SEP; "
     "dpkg -l cryptsetup 2>/dev/null | tail -2; echo SEP; "
     "echo '--- /etc/calamares files ---'; "
     "find /etc/calamares -maxdepth 3 -type f 2>/dev/null | sort; echo SEP; "
@@ -245,6 +248,8 @@ PERF_CHECKS = (
     "find /usr/share/calamares /etc/calamares -iname '*partition*' 2>/dev/null | head -30; echo SEP; "
     "echo '--- calamares settings.conf ---'; "
     "cat /etc/calamares/settings.conf 2>/dev/null | head -80; echo SEP; "
+    "echo '--- LUKS2 / partition module config ---'; "
+    "grep -niE 'luks|efi|swap' /etc/calamares/modules/partition.conf 2>/dev/null; echo SEP; "
     "ls -l /usr/sbin/cryptsetup /usr/bin/calamares 2>/dev/null; echo PERF_DONE"
 )
 
@@ -529,12 +534,17 @@ def main() -> int:
                 result["evidence"]["performance_baseline"] = str(
                     outdir / "performance-baseline.txt"
                 )
-                result["checks"]["wallpaper_config_applied"] = (
-                    "sanora-wallpaper" in perf_text
-                    and "NO_WALLPAPER_CONFIG" not in perf_text
+                result["checks"]["wallpaper_default_present"] = (
+                    "SYSTEM_WALLPAPER_DEFAULT_PRESENT" in perf_text
+                    or "NO_USER_WALLPAPER_CONFIG" not in perf_text
                 )
+                sections_perf = perf_text.split("SEP")
                 result["evidence"]["calamares_module_config_files"] = (
-                    perf_text.split("SEP")[6] if len(perf_text.split("SEP")) > 6 else ""
+                    sections_perf[6] if len(sections_perf) > 6 else ""
+                )
+                luks_section = sections_perf[10] if len(sections_perf) > 10 else ""
+                result["checks"]["luks2_configured"] = (
+                    "luksGeneration" in luks_section and "luks2" in luks_section.lower()
                 )
             except (pexpect.TIMEOUT, pexpect.EOF) as exc:
                 result["errors"].append(f"performance baseline checks failed: {exc}")

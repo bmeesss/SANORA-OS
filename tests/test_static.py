@@ -43,6 +43,7 @@ class StaticValidation(unittest.TestCase):
             "packages/sanora-base/usr/bin/sanora-info",
             "installer/calamares/branding/sanora/branding.desc",
             "installer/calamares/branding/sanora/show.qml",
+            "installer/calamares/modules/partition.conf",
             "tests/data/lb_config_trixie_options.txt",
             "SANORA_OS_ARCHITECTURE.md",
         ]
@@ -174,6 +175,12 @@ class StaticValidation(unittest.TestCase):
         self.assertIn("--local --remove --no-rename", preinst)
         postrm = (REPO_ROOT / "packages/sanora-base/DEBIAN/postrm").read_text()
         self.assertIn("dpkg-divert", postrm)
+
+    def test_calamares_partition_config_uses_luks2(self):
+        text = (REPO_ROOT / "installer/calamares/modules/partition.conf").read_text()
+        self.assertIn("luksGeneration:", text)
+        self.assertIn("luks2", text)
+        self.assertIn("userSwapChoices:", text)  # required by the Calamares schema
 
     def test_developer_documentation_exists_and_is_actionable(self):
         required = [

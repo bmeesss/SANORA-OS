@@ -20,6 +20,7 @@ new ADR with rationale and an explicit decision.
 | [0007](0007-nvidia-in-default-iso.md) | NVIDIA in the default ISO | **BLOCKED — awaiting confirmation** |
 | [0008](0008-english-default-i18n.md) | English default, international by design | Accepted (kickoff 2026-11-01) |
 | [0009](0009-sanora-base-package.md) | `sanora-base` Debian package | Accepted for `0.1.0-dev` |
+| [0010](0010-luks2-installer-config.md) | LUKS2 via Calamares `partition.conf` | Config implemented; install/boot not validated |
 
 ## Open questions carried over from phase 1
 

@@ -15,8 +15,8 @@
 | Authorisation | `polkitd`, `pkexec`, `polkit-kde-agent-1` | `Implemented`, behaviour unverified |
 | Privilege elevation | `sudo` (live-config) | `Implemented` |
 | Automatic security updates | `unattended-upgrades` + `/etc/apt/apt.conf.d/99-sanora-security` (`APT::Periodic::Unattended-Upgrade "1"`) | `Implemented`, not observed running |
-| LUKS2 capability | `cryptsetup` installed | `Implemented` (tooling only) |
-| LUKS2 in installer | Calamares encryption module | **`Planned` — not configured** |
+| LUKS2 capability | `cryptsetup` 2:2.7.5-2 installed | `Implemented` + verified present in QEMU guest |
+| LUKS2 in installer | `/etc/calamares/modules/partition.conf` with `luksGeneration: luks2` (ADR-0010) | `Implemented (config)` + config verified in guest; **installation/reboot NOT validated** |
 | Sandboxing | `flatpak` + Discover Flatpak backend + `kde-config-flatpak` | `Implemented`, not tested |
 | Secure Boot | live-build `--uefi-secure-boot auto`, reusing Debian's signed shim/GRUB | `Implemented`, boot path unverified |
 | Signed SANORA repository | none | `Planned` |
