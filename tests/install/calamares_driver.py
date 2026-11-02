@@ -199,7 +199,8 @@ def keyboard_fallback(args, values, finish, steps):
     log(f"active window: {xdo('getactivewindow', 'getwindowname')!r}")
     log(f"XAUTHORITY={os.environ.get('XAUTHORITY', '<unset>')}")
     geom = {}
-    for line in xdo("getwindowgeometry", "--shell", ids[0] if ids else "").splitlines():
+    geom_raw = xdo("getwindowgeometry", "--shell", ids[0]) if ids else ""
+    for line in geom_raw.splitlines():
         if "=" in line:
             k, v = line.split("=", 1)
             geom[k] = v.strip()
@@ -207,10 +208,13 @@ def keyboard_fallback(args, values, finish, steps):
 
     def click_next():
         # Calamares' QWidget navigation puts Next near the bottom-right, left
-        # of Quit. Click by position derived from the real window geometry.
+        # of Quit. Click by position derived from the real window geometry,
+        # but only when the geometry is plausible (a real top-level window).
         try:
             x = int(geom.get("X", "0")); y = int(geom.get("Y", "0"))
-            w = int(geom.get("WIDTH", "800")); h = int(geom.get("HEIGHT", "520"))
+            w = int(geom.get("WIDTH", "0")); h = int(geom.get("HEIGHT", "0"))
+            if w < 300 or h < 200:
+                return
             xdo("mousemove", str(x + w - 150), str(y + h - 34), "click", "1")
         except (ValueError, TypeError):
             pass

@@ -402,7 +402,8 @@ def main():
 
         launch = (
             f"sudo -n -b env DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
-            "QT_ACCESSIBILITY=1 QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 "
+            "QT_QPA_PLATFORM=xcb QT_ACCESSIBILITY=1 "
+            "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 "
             "calamares -D6 > /tmp/sanora-calamares.log 2>&1; "
             "sleep 8; pgrep -a calamares || echo CALAMARES_NOT_RUNNING"
         )
