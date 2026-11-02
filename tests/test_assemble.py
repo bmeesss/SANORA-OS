@@ -34,6 +34,8 @@ class AssembleValidation(unittest.TestCase):
         cls.env = {
             "SOURCE_DATE_EPOCH": BUILD_EPOCH,
             "SANORA_BUILD_ID": "test-0001",
+            # Force the deterministic offline delivery path for this test.
+            "SANORA_FORCE_PACKAGES_CHROOT": "1",
         }
         result = run(
             ["bash", str(REPO_ROOT / "build/scripts/assemble-config.sh"), str(cls.live)],

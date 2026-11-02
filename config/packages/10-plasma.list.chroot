@@ -11,6 +11,9 @@ breeze
 systemsettings
 kde-cli-tools
 polkit-kde-agent-1
+# kreadconfig6 is used by the clean-account theme validation in the QEMU
+# boot harness (verified: /usr/bin/kreadconfig6 in trixie).
+libkf6config-bin
 
 # A minimal usable desktop: file manager and terminal only.
 dolphin

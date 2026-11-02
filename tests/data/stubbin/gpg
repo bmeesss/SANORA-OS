@@ -1,0 +1,27 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Test double for offline repository-generation tests. No real cryptography.
+# It only implements the CLI shapes build-repo.sh uses.
+case " $* " in
+    *"--list-secret-keys"*)
+        printf 'fpr:::::::::ABCDEF0123456789ABCDEF0123456789ABCDEF01:\n'
+        exit 0
+        ;;
+    *"--verify"*)
+        exit 0
+        ;;
+    *"--detach-sign"*|*"--clearsign"*|*"--export"*)
+        prev=""
+        out=""
+        for a in "$@"; do
+            if [ "$prev" = "-o" ]; then out="$a"; fi
+            prev="$a"
+        done
+        printf '%s\n' '-----BEGIN PGP SIGNATURE-----' 'STUB' \
+            '-----END PGP SIGNATURE-----' > "$out"
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac

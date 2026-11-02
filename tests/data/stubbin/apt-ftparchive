@@ -1,0 +1,17 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Test double for offline repository-generation tests. Prints minimal but
+# structurally valid Packages / Release stanzas.
+case " $* " in
+    *" packages "*)
+        printf 'Package: sanora-base\nVersion: 0.1.0-dev\nArchitecture: all\nFilename: pool/main/s/sanora-base/sanora-base_0.1.0-dev_all.deb\n\n'
+        exit 0
+        ;;
+    *" release "*)
+        printf 'Origin: SANORA OS\nLabel: SANORA OS\nSuite: sanora\nCodename: genesis\nArchitectures: amd64\nComponents: main\nDate: Thu, 01 Jan 1970 00:00:00 UTC\n'
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac

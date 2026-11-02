@@ -64,7 +64,10 @@ fi
 
 REPO="$REPO_ROOT/build/work/repo"
 SIGNED_REPO=0
-if [ -f "$REPO/dists/sanora/InRelease" ] && \
+# The offline test suite sets this to exercise the packages.chroot fallback
+# deterministically even if a developer has a signed repo from a prior build.
+if [ "${SANORA_FORCE_PACKAGES_CHROOT:-0}" != "1" ] && \
+   [ -f "$REPO/dists/sanora/InRelease" ] && \
    [ -f "$REPO/dists/sanora/Release.gpg" ] && \
    [ -f "$REPO/sanora-archive-key.asc" ]; then
     SIGNED_REPO=1

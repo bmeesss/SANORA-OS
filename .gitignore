@@ -3,6 +3,10 @@
 
 # live-build working tree and generated configuration
 /build/work/
+
+# Ephemeral development GPG keyring for the signed APT repository.
+# Never committed; a release build must supply SANORA_REPO_KEY_ID instead.
+/.sanora-dev-gnupg/
 build.log
 chroot/
 binary/

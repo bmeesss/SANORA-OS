@@ -49,7 +49,11 @@ if [ ! -f "$DEB" ]; then
 fi
 
 KEY_ID="${SANORA_REPO_KEY_ID:-}"
-GNUPGHOME="$WORK/gnupg"
+# Keep the development keyring OUTSIDE build/work: `build.sh --clean` removes
+# build/work before the reproducibility second build, and a new random key on
+# each build would make the two signed archives (and any traces in the image)
+# differ. A stable per-checkout key keeps both builds identical.
+GNUPGHOME="${SANORA_REPO_GNUPGHOME:-$REPO_ROOT/.sanora-dev-gnupg}"
 export GNUPGHOME
 mkdir -p "$GNUPGHOME"
 chmod 0700 "$GNUPGHOME"
@@ -87,6 +91,8 @@ cp "$DEB" "$REPO/pool/main/s/sanora-base/"
 gzip -9 -n -c "$REPO/dists/sanora/main/binary-amd64/Packages" \
     > "$REPO/dists/sanora/main/binary-amd64/Packages.gz"
 
+# Write Release outside the directory being scanned, then move it in, so the
+# partially written file cannot be included in its own checksum list.
 ( cd "$REPO" && apt-ftparchive \
     -o "APT::FTPArchive::Release::Origin=SANORA OS" \
     -o "APT::FTPArchive::Release::Label=SANORA OS" \
@@ -96,7 +102,8 @@ gzip -9 -n -c "$REPO/dists/sanora/main/binary-amd64/Packages" \
     -o "APT::FTPArchive::Release::Components=main" \
     -o "APT::FTPArchive::Release::Description=SANORA OS development archive" \
     -o "APT::FTPArchive::Release::Date=${EPOCH_DATE}" \
-    release dists/sanora > dists/sanora/Release )
+    release dists/sanora > "$WORK/Release.generated" )
+mv "$WORK/Release.generated" "$REPO/dists/sanora/Release"
 
 "$GPG_BIN" --batch --yes --pinentry-mode loopback --passphrase '' \
     --armor --detach-sign \

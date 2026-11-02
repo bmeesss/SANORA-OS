@@ -19,7 +19,8 @@ repo/
 └── sanora-archive-key.asc            (armoured public key)
 repo-key-id                           key fingerprint
 repo-metadata.json                    provenance record
-gnupg/                                ephemeral keyring (development only)
+.sanora-dev-gnupg/                    ephemeral development keyring at repo root (Git-ignored, kept across builds so the
+                                      reproducibility second build uses the same key)
 ```
 
 `apt-ftparchive` generates `Packages` and `Release`; `Release` carries
