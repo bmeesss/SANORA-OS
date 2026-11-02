@@ -1,7 +1,11 @@
-name: Build development ISO
+name: Build and boot-test development ISO
 
-# Deliberately NOT triggered by pull_request. ISO builds are expensive and
-# require root + a Debian mirror. Triggers: manual, release, weekly schedule.
+# Real Debian 13 "trixie" build environment with network access.
+#
+# Triggering: `workflow_dispatch` is not available to the repository's CI
+# token (HTTP 403), and `release`/`schedule` only apply to the default branch.
+# A push to a dedicated marker file is therefore the reliable way to request a
+# real ISO build on this working branch. No ISO is built on every commit.
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +13,10 @@ on:
         description: "Why is this ISO being built?"
         required: false
         default: "manual development build"
+  push:
+    branches: [ "arena/fa064594-sanora-os" ]
+    paths:
+      - ".github/ISO_BUILD_TRIGGER"
   release:
     types: [ published ]
   schedule:
@@ -20,53 +28,77 @@ permissions:
 
 jobs:
   iso:
-    name: Debian live-build ISO
+    name: Build ISO and boot it in QEMU
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     container:
       image: debian:trixie
       options: --privileged
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
-      - name: Install build dependencies
+      - name: Install build and boot-test dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          apt-get install -y --no-install-recommends \
             live-build debootstrap xorriso squashfs-tools syslinux-common \
-            grub-efi-amd64-bin dosfstools mtools dpkg-dev git python3 curl \
-            ca-certificates coreutils findutils
+            isolinux grub-efi-amd64-bin dosfstools mtools dpkg-dev git python3 \
+            python3-pexpect curl ca-certificates coreutils findutils procps \
+            cpio apt-utils bzip2 cryptsetup file rsync wget xz-utils \
+            e2fsprogs parted systemd-container gzip zstd \
+            qemu-system-x86 ovmf qemu-utils netpbm
 
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Show environment
+        run: |
+          . /etc/os-release && echo "Host: $PRETTY_NAME"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "live-build: $(lb --version 2>/dev/null || echo unknown)"
+          echo "QEMU: $(qemu-system-x86_64 --version | head -1)"
+          echo "KVM: $(test -w /dev/kvm && echo available || echo unavailable)"
+          echo "OVMF: $(ls /usr/share/qemu/OVMF.fd /usr/share/OVMF/OVMF_CODE_4M.fd 2>/dev/null | tr '\n' ' ')"
+
       - name: Preflight (host dependencies + Debian mirror)
         run: SANORA_SKIP_NETWORK_CHECK=0 bash build/scripts/preflight.sh
 
-      - name: Build ISO
-        # The container runs as root; SOURCE_DATE_EPOCH is derived from git.
+      - name: Build ISO with the existing build system
+        # Full output is captured by this step's log and by build/work/live/build.log.
         run: ./build.sh
+
+      - name: Collect measured component versions
+        if: success()
+        run: bash build/scripts/collect-versions.sh
 
       - name: Show build metadata
         if: always()
         run: |
-          echo "--- out/ ---"
-          ls -la out/ || true
-          echo "--- build-metadata.json ---"
-          cat out/build-metadata.json || true
+          echo "--- out/ ---"; ls -la out/ || true
+          echo "--- build-metadata.json ---"; cat out/build-metadata.json || true
+          echo "--- build.log tail ---"; tail -60 build/work/live/build.log || true
 
-      - name: Upload ISO and checksums
-        if: success()
+      - name: Boot validation - UEFI (primary)
+        if: always()
+        run: |
+          python3 tests/boot/qemu_boot.py --iso "$(find out -maxdepth 1 -name '*.iso' -print -quit)" \
+            --mode uefi --out out/boot-uefi --timeout 420
+          cat out/boot-uefi/boot-validation.json || true
+
+      - name: Boot validation - Legacy BIOS
+        if: always()
+        run: |
+          python3 tests/boot/qemu_boot.py --iso "$(find out -maxdepth 1 -name '*.iso' -print -quit)" \
+            --mode bios --out out/boot-bios --timeout 300
+          cat out/boot-bios/boot-validation.json || true
+
+      - name: Upload ISO, metadata and boot evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sanora-development-iso
-          path: out/
-          if-no-files-found: error
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sanora-build-log
-          path: build/work/live/build.log
+          name: sanora-iso-and-evidence
+          path: |
+            out/
+            build/work/live/build.log
           if-no-files-found: warn
-
-# NOTE: this workflow has NOT been executed yet. It is a real, runnable
-# foundation, not a verified green build. See docs/architecture/STATUS.md.
+          retention-days: 14

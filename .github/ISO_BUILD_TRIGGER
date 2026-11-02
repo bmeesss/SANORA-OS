@@ -1,0 +1,8 @@
+SANORA OS development ISO build request.
+
+Pushing a change to THIS file triggers .github/workflows/iso.yml on the working
+branch. It runs the real Debian 13 trixie live-build pipeline and QEMU boot
+validation. workflow_dispatch is not available to this repository's CI token,
+so this marker is the documented, auditable build trigger.
+
+build-request: 1
