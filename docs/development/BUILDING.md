@@ -186,4 +186,25 @@ It contains explicit gates: `nvidia_in_iso`, `boot_tested`,
   2.39 GB ISO and booted it under UEFI and BIOS. Full results are in
   `docs/architecture/STATUS.md`.
 
+## Phase 3 additions
+
+- **Step 2b** calls `build/scripts/build-repo.sh`, which builds a GPG-signed
+  local APT repository (`apt-ftparchive` + `gpg`) and replaces permanent
+  reliance on `config/packages.chroot/`. Set `SANORA_REPO_KEY_ID` to an
+  offline-managed key for releases, or `SANORA_REPO_AUTO_KEY=1` for an
+  ephemeral development key. Without a key the script refuses to build an
+  unsigned archive (ADR-0012, `repo/README.md`). This adds `gnupg` and
+  `apt-utils` as host dependencies.
+- `iso.yml` now runs `diffoscope` and a squashfs file-metadata diff on the two
+  same-commit ISOs (`out/diffoscope.txt`, `out/squashfs-metadata-diff.txt`),
+  downloads the official Debian 13 KDE live ISO and measures it with the same
+  VM configuration (`out/baseline/baseline-comparison.json`), and adds clean-
+  account theme checks to `tests/boot/qemu_boot.py`.
+- `.github/workflows/install.yml` performs a **real Calamares installation**
+  into a disposable QEMU VM and reboots into the installed system, using the
+  ISO artifact of an earlier run (id in `.github/INSTALL_TEST_TRIGGER`). It
+  does not rebuild the ISO, so the GUI automation can be iterated quickly.
+  `--driver` uploads the current `tests/install/calamares_driver.py` into the
+  guest over the serial console.
+
 See `docs/development/TESTING.md` for the test matrix.

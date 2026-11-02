@@ -51,11 +51,12 @@ On a machine without `live-build` (including restricted CI sandboxes),
 | `config/packages/` | Explicit, reviewed package lists |
 | `config/desktop/` | KDE / Plasma system defaults |
 | `config/system/` | `/etc` defaults, live-config, security baseline |
-| `branding/` | Original SANORA SVG/PNG assets and ISO text |
+| `branding/` | Original SANORA SVG/PNG assets, ISO text and KDE Plasma Global Theme (`branding/plasma/`) |
 | `packages/sanora-base/` | The first SANORA Debian package |
-| `installer/calamares/` | Calamares branding (installer is upstream) |
-| `tests/` | Offline test suite (`tests/run.sh`) |
-| `.github/` | Static-validation CI; ISO builds are manual/release-only |
+| `installer/calamares/` | Calamares branding and LUKS2 partition config (installer is upstream) |
+| `repo/` | Signed SANORA APT repository design and key-management policy |
+| `tests/` | Offline suite (`tests/run.sh`) and QEMU boot/install harnesses |
+| `.github/` | Static validation, ISO build, boot/diffoscope/baseline and installation workflows |
 | `docs/development/` | Build, repository, testing, branding, i18n docs |
 | `docs/decisions/` | English ADRs and the decision index |
 | `SANORA_OS_ARCHITECTURE.md` | Phase-1 research document (Dutch, historical) |
@@ -88,9 +89,16 @@ copied: SANORA OS is an original identity, not a macOS clone.
   results, reproducibility findings and performance baseline.
 - The local sandbox still has no `live-build` and no Debian mirror access, so
   ISO builds happen in CI, not here.
-- Encrypted (LUKS2) installation and reboot, full ISO reproducibility, the
-  SANORA wallpaper display, a signed SANORA APT repository, an own Secure Boot
-  shim and a public release are **not** done yet.
+- Phase 3 adds an original KDE Plasma Global Theme (light + dark, icon themes,
+  color schemes, panel/dock layout script), a GPG-signed build-time SANORA APT
+  repository, a Calamares LUKS2 partition configuration with an unencrypted
+  `/boot` (ADR-0011), `diffoscope` reproducibility analysis, a Debian-KDE
+  performance comparison harness, and an automated Calamares installation +
+  reboot harness. See `docs/architecture/STATUS.md` for which of these have
+  actually been verified in CI.
+- Not yet complete: an encrypted installation that reboots successfully, full
+  ISO reproducibility, an own Secure Boot shim, an offline-managed release
+  signing key and a public release.
 
 ## Contributing
 

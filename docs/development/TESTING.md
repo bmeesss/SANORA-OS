@@ -29,8 +29,8 @@ python3 tests/check_package_names.py --online  # verify against packages.debian.
 | Config assembly | real script run in temp dir, exact tree, idempotence, no NVIDIA, no duplicate overlays | executed, passing |
 | Documentation | required files present, `.gitignore` coverage, metadata gates present | executed, passing |
 
-Final offline run: **32 unit tests + shell/Python syntax + ShellCheck + package
-list check, all executed and passing** (`2026-11-02`). Two assertions initially
+Final offline run: **46 unit tests + shell/Python syntax + ShellCheck + package
+list check, all executed and passing** (`2026-11-02`, Phase 3). Two assertions initially
 failed because they checked literal strings while the code uses quoted
 `os-release` values and `version.env` interpolation; the assertions were
 corrected and the suite re-run. This is a test fix, not a product fix, and is
@@ -45,7 +45,22 @@ via the QEMU human monitor, runs guest-side checks (`cat /etc/os-release`,
 `locale-gen`, Calamares start, `lsblk`, performance commands) and writes
 `boot-validation.json` with explicit booleans. Both modes reported
 `status: BOOTED`. The same workflow performs a second build of the same commit
-and writes `reproducibility.json` plus byte-level diffs.
+and writes `reproducibility.json` plus byte-level diffs, now also
+`diffoscope.txt` and `squashfs-metadata-diff.txt`, and boots the official
+Debian 13 KDE ISO for a baseline comparison.
+
+Phase 3 adds:
+- `tests/test_theme.py` — validates the KDE Global Theme KPackages, color
+  schemes, icon themes, layout script and clean-account defaults offline.
+- `tests/test_repo.py` — validates the signed repository wiring offline.
+- `tests/boot/qemu_boot.py` `THEME_CHECKS` — runs `kreadconfig6` with an empty
+  `HOME` to prove the theme resolves on a clean account.
+- `tests/install/qemu_install.py` + `tests/install/calamares_driver.py` —
+  completes a real Calamares installation in a disposable UEFI QEMU VM,
+  reboots from the installed disk, and validates identity, user, locale,
+  GPT/ESP, GRUB, LUKS2, Wayland and theme. A running process is not enough.
+- `tests/boot/qemu_baseline.py` — measures stock Debian 13 KDE with the same
+  VM configuration.
 
 ## What is NOT automated / NOT verified
 

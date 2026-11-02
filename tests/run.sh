@@ -13,6 +13,7 @@ SHELL_FILES=(
     build/scripts/build-package.sh
     build/scripts/assemble-config.sh
     build/scripts/collect-versions.sh
+    build/scripts/build-repo.sh
     build/live-build/options.sh
     build/live-build/hooks/normal/0010-sanora-locale.hook.chroot
     build/live-build/hooks/normal/0020-sanora-calamares-branding.hook.chroot
@@ -30,8 +31,11 @@ echo "=== 2/5 Python syntax ==="
 python3 -m py_compile \
     build/scripts/write-metadata.py \
     tests/helpers.py tests/test_static.py tests/test_package.py \
-    tests/test_assemble.py tests/check_package_names.py tests/boot/qemu_boot.py
-echo "  ok  py_compile (6 modules)"
+    tests/test_assemble.py tests/check_package_names.py \
+    tests/test_theme.py tests/test_repo.py \
+    tests/boot/qemu_boot.py tests/boot/qemu_baseline.py \
+    tests/install/qemu_install.py tests/install/calamares_driver.py
+echo "  ok  py_compile (11 modules)"
 
 echo "=== 3/5 Optional ShellCheck ==="
 if command -v shellcheck >/dev/null 2>&1; then

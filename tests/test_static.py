@@ -44,6 +44,21 @@ class StaticValidation(unittest.TestCase):
             "installer/calamares/branding/sanora/branding.desc",
             "installer/calamares/branding/sanora/show.qml",
             "installer/calamares/modules/partition.conf",
+            "branding/plasma/README.md",
+            "branding/plasma/look-and-feel/metadata.json.in",
+            "branding/plasma/look-and-feel/defaults.in",
+            "branding/plasma/look-and-feel/org.kde.plasma.desktop-layout.js",
+            "branding/plasma/colors/SANORALight.colors",
+            "branding/plasma/colors/SANORADark.colors",
+            "branding/plasma/icons/index.theme.in",
+            "branding/plasma/icons/sanora-launcher.svg",
+            "build/scripts/build-repo.sh",
+            "repo/README.md",
+            "tests/install/calamares_driver.py",
+            "tests/install/qemu_install.py",
+            "tests/boot/qemu_baseline.py",
+            "docs/decisions/0011-luks2-grub-argon2id.md",
+            "docs/decisions/0012-signed-apt-repository.md",
             "tests/data/lb_config_trixie_options.txt",
             "SANORA_OS_ARCHITECTURE.md",
         ]
@@ -136,7 +151,10 @@ class StaticValidation(unittest.TestCase):
             "build/scripts/preflight.sh",
             "build/scripts/build-package.sh",
             "build/scripts/assemble-config.sh",
+            "build/scripts/build-repo.sh",
             "build/scripts/write-metadata.py",
+            "tests/install/calamares_driver.py",
+            "tests/install/qemu_install.py",
             "packages/sanora-base/DEBIAN/preinst",
             "packages/sanora-base/DEBIAN/postrm",
             "packages/sanora-base/usr/bin/sanora-info",
@@ -181,6 +199,9 @@ class StaticValidation(unittest.TestCase):
         self.assertIn("luksGeneration:", text)
         self.assertIn("luks2", text)
         self.assertIn("userSwapChoices:", text)  # required by the Calamares schema
+        self.assertIn("partitionLayout:", text)
+        self.assertIn("noEncrypt: true", text)  # unencrypted /boot (ADR-0011)
+        self.assertIn('mountPoint: "/boot"', text)
 
     def test_developer_documentation_exists_and_is_actionable(self):
         required = [
