@@ -194,7 +194,8 @@ MAIN_CHECKS = (
     "systemctl is-active NetworkManager sddm; echo SEP; "
     "systemctl --user is-active pipewire pipewire-pulse wireplumber; echo SEP; "
     "for b in dolphin konsole plasma-discover fwupdmgr flatpak appstreamcli calamares cryptsetup; do "
-    "command -v $b || echo MISSING:$b; done; echo SEP; "
+    "command -v $b || echo MISSING:$b; done; "
+    "test -x /usr/sbin/cryptsetup && echo CRYPTSETUP_PRESENT || echo CRYPTSETUP_ABSENT; echo SEP; "
     "fwupdmgr --version; echo SEP; "
     "ip -brief address; echo SEP; "
     "locale -a; echo SEP; "
@@ -218,12 +219,33 @@ LOCALE_CHECKS = (
 
 CALAMARES_CHECKS = (
     "ls -l /tmp/.X11-unix/ 2>/dev/null; "
-    "echo DISPLAY=${DISPLAY:-unset}; "
-    "sudo -n -b env DISPLAY=:0 QT_QPA_PLATFORM=xcb calamares "
+    "XAUTH=$(ls /run/user/1000/xauth_* 2>/dev/null | head -1); "
+    "echo XAUTHORITY=${XAUTH:-none}; "
+    "sudo -n -b env DISPLAY=:0 XAUTHORITY=$XAUTH QT_QPA_PLATFORM=xcb calamares "
     "> /tmp/sanora-calamares.log 2>&1; "
-    "sleep 8; pgrep -a calamares || echo CALAMARES_NOT_RUNNING; "
+    "sleep 10; pgrep -a calamares || echo CALAMARES_NOT_RUNNING; "
     "tail -30 /tmp/sanora-calamares.log 2>/dev/null; "
     "echo CALAMARES_DONE"
+)
+
+# Baseline measurements only -- explicitly NOT performance achievements.
+PERF_CHECKS = (
+    "systemd-analyze; echo SEP; "
+    "free -m; echo SEP; "
+    "cat /proc/loadavg; echo SEP; "
+    "ps -e --no-headers | wc -l; echo SEP; "
+    "grep -R 'sanora-wallpaper' $HOME/.config/plasma-org.kde.plasma.desktop-appletsrc "
+    "2>/dev/null || echo NO_WALLPAPER_CONFIG; echo SEP; "
+    "dpkg -l cryptsetup 2>/dev/null | tail -2; echo SEP; "
+    "echo '--- /etc/calamares files ---'; "
+    "find /etc/calamares -maxdepth 3 -type f 2>/dev/null | sort; echo SEP; "
+    "echo '--- calamares-settings-debian configs ---'; "
+    "dpkg -L calamares-settings-debian 2>/dev/null | grep -E '\\.conf$|partition' | head -40; echo SEP; "
+    "echo '--- partition module configs anywhere ---'; "
+    "find /usr/share/calamares /etc/calamares -iname '*partition*' 2>/dev/null | head -30; echo SEP; "
+    "echo '--- calamares settings.conf ---'; "
+    "cat /etc/calamares/settings.conf 2>/dev/null | head -80; echo SEP; "
+    "ls -l /usr/sbin/cryptsetup /usr/bin/calamares 2>/dev/null; echo PERF_DONE"
 )
 
 
@@ -256,7 +278,9 @@ def derive_checks(text: str, sections: list[str]) -> dict:
     )
     calamares_branding = "sanora" in sec(14).lower() and "sanora" in sec(15).lower()
     disks = bool(re.search(r"\b(sr0|cdrom|vd[a-z]|sd[a-z]|nvme)\b", sec(16)))
-    cryptsetup = "cryptsetup" in apps and "MISSING:cryptsetup" not in apps
+    cryptsetup = "CRYPTSETUP_PRESENT" in apps or (
+        "cryptsetup" in apps and "MISSING:cryptsetup" not in apps
+    )
     luks_conf = "luks" in sec(17).lower() or "luks" in sec(18).lower()
     return {
         "os_release_sanora": identity,
@@ -372,6 +396,18 @@ def main() -> int:
     cmd = " ".join(shlex.quote(a) for a in argv) + " 2>" + shlex.quote(str(stderr_log))
     log_handle = serial_log.open("w", encoding="utf-8", errors="replace")
 
+    result["vm"] = {
+        "ram_mb": 4096,
+        "vcpus": 2,
+        "vga": "std",
+        "firmware": firmware or "SeaBIOS (QEMU default)",
+        "accel": "kvm" if kvm else "tcg",
+        "network": "qemu user-mode (e1000)",
+        "audio_device": "intel-hda / hda-duplex",
+        "display": "none (framebuffer captured via QMP screendump)",
+    }
+
+    boot_start = time.time()
     child = None
     hmp = None
     try:
@@ -420,6 +456,9 @@ def main() -> int:
                 break
         boot_info = result.setdefault("boot", {})
         boot_info["login_shell"] = shell_ready
+        boot_info["boot_to_shell_seconds"] = (
+            round(time.time() - boot_start, 1) if shell_ready else None
+        )
         boot_info["serial_log"] = str(serial_log)
 
         if shell_ready:
@@ -477,6 +516,28 @@ def main() -> int:
             except (pexpect.TIMEOUT, pexpect.EOF) as exc:
                 result["checks"]["calamares_starts"] = False
                 result["errors"].append(f"Calamares checks failed: {exc}")
+
+            try:
+                perf_text = guest_command(
+                    child,
+                    "echo PERF_BEGIN; " + PERF_CHECKS,
+                    "PERF", timeout=120,
+                )
+                (outdir / "performance-baseline.txt").write_text(
+                    perf_text, encoding="utf-8"
+                )
+                result["evidence"]["performance_baseline"] = str(
+                    outdir / "performance-baseline.txt"
+                )
+                result["checks"]["wallpaper_config_applied"] = (
+                    "sanora-wallpaper" in perf_text
+                    and "NO_WALLPAPER_CONFIG" not in perf_text
+                )
+                result["evidence"]["calamares_module_config_files"] = (
+                    perf_text.split("SEP")[6] if len(perf_text.split("SEP")) > 6 else ""
+                )
+            except (pexpect.TIMEOUT, pexpect.EOF) as exc:
+                result["errors"].append(f"performance baseline checks failed: {exc}")
 
         # Desktop screenshot (whatever is actually on the framebuffer).
         desktop_ppm = outdir / "desktop.ppm"

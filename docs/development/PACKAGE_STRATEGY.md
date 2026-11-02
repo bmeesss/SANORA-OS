@@ -18,7 +18,7 @@
 
 ## The explicit list
 
-`config/packages/*.list.chroot` contains eight lists and **60 unique packages**
+`config/packages/*.list.chroot` contains eight lists and **61 unique packages**
 (as of 2026-11-01; for the exact current list run
 `python3 tests/check_package_names.py`). Each list has one responsibility:
 

@@ -3,6 +3,9 @@
 # and patches the single `branding` key with hook 0020 -- no fork.
 calamares
 calamares-settings-debian
+# Qt 6.5+ xcb platform needs libxcb-cursor0; without it Calamares cannot
+# start on an X11/XWayland display (verified in QEMU boot test, build #5).
+libxcb-cursor0
 
 # Recommended by calamares in trixie; needed to unpack the live squashfs and
 # to offer Btrfs as an installation target.
