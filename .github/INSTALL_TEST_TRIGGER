@@ -6,5 +6,6 @@ Calamares installation in a disposable QEMU VM, followed by a reboot into the
 installed system. No ISO rebuild is needed, so the GUI automation can be
 iterated quickly.
 
-source-run-id: 41519403741
+source-run-id: 41528961532
 # install iteration 2 (sendkey fix)
+# install iteration 3 (AT-SPI bus + keyboard fallback)
