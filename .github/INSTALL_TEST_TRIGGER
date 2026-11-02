@@ -7,3 +7,4 @@ installed system. No ISO rebuild is needed, so the GUI automation can be
 iterated quickly.
 
 source-run-id: 41519403741
+# install iteration 2 (sendkey fix)
