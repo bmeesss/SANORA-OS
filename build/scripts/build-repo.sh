@@ -57,9 +57,12 @@ GNUPGHOME="${SANORA_REPO_GNUPGHOME:-$REPO_ROOT/.sanora-dev-gnupg}"
 export GNUPGHOME
 mkdir -p "$GNUPGHOME"
 chmod 0700 "$GNUPGHOME"
+# The fingerprint must live with the persistent keyring, NOT in build/work:
+# `build.sh --clean` wipes build/work before the reproducibility second build.
+KEY_ID_FILE="$GNUPGHOME/repo-key-id"
 
-if [ -z "$KEY_ID" ] && [ -f "$WORK/repo-key-id" ]; then
-    KEY_ID="$(tr -d '\n' < "$WORK/repo-key-id")"
+if [ -z "$KEY_ID" ] && [ -f "$KEY_ID_FILE" ]; then
+    KEY_ID="$(tr -d '\n' < "$KEY_ID_FILE")"
 fi
 if [ -z "$KEY_ID" ]; then
     if [ "${SANORA_REPO_AUTO_KEY:-0}" != "1" ]; then
@@ -76,9 +79,10 @@ if [ -z "$KEY_ID" ]; then
         echo "build-repo: could not determine generated key fingerprint" >&2
         exit 1
     fi
-    printf '%s\n' "$KEY_ID" > "$WORK/repo-key-id"
+    printf '%s\n' "$KEY_ID" > "$KEY_ID_FILE"
     echo "build-repo: generated EPHEMERAL development key $KEY_ID"
 fi
+printf '%s\n' "$KEY_ID" > "$WORK/repo-key-id"
 
 rm -rf "$REPO"
 mkdir -p "$REPO/pool/main/s/sanora-base" \
@@ -121,7 +125,7 @@ mv "$WORK/Release.generated" "$REPO/dists/sanora/Release"
 cat > "$WORK/repo-metadata.json" <<EOF
 {
   "key_fingerprint": "${KEY_ID}",
-  "key_is_ephemeral": $([ -f "$WORK/repo-key-id" ] && echo true || echo false),
+  "key_is_ephemeral": $([ -f "$KEY_ID_FILE" ] && echo true || echo false),
   "suite": "sanora",
   "component": "main",
   "architecture": "${SANORA_ARCH}",

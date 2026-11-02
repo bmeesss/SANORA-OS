@@ -99,7 +99,22 @@ jobs:
           # from exactly the same commit and SOURCE_DATE_EPOCH.
           ./build.sh --clean
           mkdir -p build/work
-          ./build.sh 2>&1 | tee build/work/second-build.log
+          # Do NOT use a `... | tee` pipeline here: without pipefail in this
+          # shell, a failing build.sh would be masked by tee's exit code.
+          set +e
+          ./build.sh > build/work/second-build.log 2>&1
+          SECOND_RC=$?
+          set -e
+          cat build/work/second-build.log
+          echo "::notice::second build exit code: $SECOND_RC"
+          if [ "$SECOND_RC" -ne 0 ]; then
+            # Keep a valid ISO for boot validation and the artifact rather
+            # than silently losing the first one. The failure stays visible.
+            cp /tmp/sanora-first.iso out/sanora-0.1.0-dev-amd64.iso
+            printf 'second build FAILED (exit %s); first ISO restored for validation\n' \
+              "$SECOND_RC" > out/second-build-failure.txt
+            echo "::error::second ISO build failed with exit $SECOND_RC"
+          fi
           SECOND_ISO="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
           SECOND_SHA="$(sha256sum "$SECOND_ISO" | awk '{print $1}')"
           echo "Second ISO sha256: $SECOND_SHA"
