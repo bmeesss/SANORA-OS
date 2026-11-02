@@ -101,6 +101,13 @@ fi
 log "Step 2/7 - build sanora-base Debian package"
 "$SCRIPTS/build-package.sh" || fail "could not build sanora-base package"
 
+log "Step 2b/7 - build signed SANORA APT repository"
+if [ "$MODE" = "build" ]; then
+    "$SCRIPTS/build-repo.sh" || fail "could not build signed SANORA repository"
+else
+    echo "build.sh: config-only mode; signed repository generation skipped"
+fi
+
 log "Step 3/7 - configure Debian live-build"
 rm -rf "$LIVE/config"
 mkdir -p "$LIVE"

@@ -18,7 +18,7 @@
 
 ## The explicit list
 
-`config/packages/*.list.chroot` contains eight lists and **61 unique packages**
+`config/packages/*.list.chroot` contains eight lists and **65 unique packages**
 (as of 2026-11-01; for the exact current list run
 `python3 tests/check_package_names.py`). Each list has one responsibility:
 
@@ -58,17 +58,20 @@ diff against the baseline and re-add anything required. No unverified
 
 `packages/sanora-base` is the only SANORA package today. It is a `dpkg-deb`
 binary staging tree (no debhelper yet) built reproducibly by
-`build/scripts/build-package.sh` and installed by live-build via
-`config/packages.chroot/`.
+`build/scripts/build-package.sh`. It is delivered through the **GPG-signed
+SANORA APT repository** built by `build/scripts/build-repo.sh` and wired into
+live-build with `config/archives/` (ADR-0012, `repo/README.md`). Offline
+`--config-only` validation still falls back to `config/packages.chroot/`
+because no signing key is available there; that fallback is explicitly
+reported and is never used for a real ISO build.
 
 Planned modular split (not implemented): `sanora-defaults`, `sanora-branding`,
 `sanora-tools`, `sanora-release`. No giant package.
 
 ## Future work
 
-- Replace `packages.chroot` with a **signed local SANORA APT repository** so
-  updates are possible and secure APT applies to SANORA packages too (the
-  Debian Live Manual notes `packages.chroot` cannot use secure APT).
+- Offline-managed release signing key, HTTPS mirror and rotation policy
+  (development builds use an ephemeral key).
 - Pin package versions for reproducible builds.
 - Generate `binary.packages` review and a firmware inventory.
 - Decide ADR-0003 / Q-08 (PackageKit) and Q-09 (default apps/Flathub remote).

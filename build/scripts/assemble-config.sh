@@ -49,13 +49,44 @@ if [ "${#LISTS[@]}" -eq 0 ]; then
 fi
 cp "${LISTS[@]}" "$CONF/package-lists/"
 
-# 2. SANORA Debian package(s) installed by live-build via packages.chroot.
+# 2. SANORA Debian package(s). Preferred delivery is the GPG-signed local
+#    APT repository (config/archives/ + a package list). live-build copies
+#    *.key to /etc/apt/trusted.gpg.d/ and bind-mounts file:// URIs listed in
+#    *.list into the chroot (verified in live-build 20250505 chroot_archives).
+#    Only when no signed repo exists (offline --config-only validation) do we
+#    fall back to packages.chroot, which the Debian Live Manual notes cannot
+#    use secure APT; that fallback is recorded in the build metadata.
 DEBS=("$REPO_ROOT"/build/work/packages/*.deb)
 if [ "${#DEBS[@]}" -ne 1 ]; then
     echo "assemble-config: expected exactly one built .deb in build/work/packages/, found ${#DEBS[@]}" >&2
     exit 1
 fi
-cp "${DEBS[0]}" "$CONF/packages.chroot/"
+
+REPO="$REPO_ROOT/build/work/repo"
+SIGNED_REPO=0
+if [ -f "$REPO/dists/sanora/InRelease" ] && \
+   [ -f "$REPO/dists/sanora/Release.gpg" ] && \
+   [ -f "$REPO/sanora-archive-key.asc" ]; then
+    SIGNED_REPO=1
+fi
+
+mkdir -p "$CONF/archives"
+if [ "$SIGNED_REPO" -eq 1 ]; then
+    # The key file name must match what live-build installs: <basename>.asc
+    # (armoured keys) under /etc/apt/trusted.gpg.d/.
+    cat > "$CONF/archives/sanora.list.chroot" <<EOF
+deb [signed-by=/etc/apt/trusted.gpg.d/sanora.key.chroot.asc] file://${REPO} sanora main
+EOF
+    cp "$REPO/sanora-archive-key.asc" "$CONF/archives/sanora.key.chroot"
+    printf '%s\n' 'sanora-base' > "$CONF/package-lists/sanora-repo.list.chroot"
+    rm -f "$CONF"/packages.chroot/*.deb
+    echo "assemble-config: using GPG-signed SANORA repository at $REPO"
+else
+    cp "${DEBS[0]}" "$CONF/packages.chroot/"
+    rm -f "$CONF/archives/sanora.list.chroot" "$CONF/archives/sanora.key.chroot" \
+          "$CONF/package-lists/sanora-repo.list.chroot"
+    printf 'assemble-config: WARNING: no signed repository present; using packages.chroot fallback (offline validation only)\n' >&2
+fi
 
 # 3. Chroot hooks (execute at the end of the chroot stage).
 HOOKS=("$REPO_ROOT"/build/live-build/hooks/normal/*.hook.chroot)
