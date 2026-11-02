@@ -44,10 +44,16 @@ package and no fork of `base-files`, Plasma or Calamares.
 
 `base-files` owns `/etc/os-release`. `DEBIAN/preinst` adds a `dpkg-divert` to
 `/etc/os-release.debian` and `DEBIAN/postrm` removes it. This is the standard
-Debian way to replace a file owned by another package. It is a real system-level
-change and is therefore **not claimed as tested**: package installation inside
-a trixie chroot has not been performed yet (see
-`docs/architecture/STATUS.md`).
+Debian way to replace a file owned by another package.
+
+**Regression fixed after ISO build #3.** `debootstrap` (used by live-build)
+leaves a *local* diversion of `/etc/os-release` to
+`/etc/os-release.debootstrap`, which clashed with our diversion and aborted
+`lb build`. live-build's own `scripts/build/chroot_hacks` removes that local
+diversion, but only **after** packages are installed. `preinst` now removes it
+first with the same command live-build uses
+(`dpkg-divert --local --remove --no-rename /etc/os-release`) and then registers
+the SANORA diversion. This is a real fix, verified by the subsequent ISO build.
 
 ## Internationalisation
 

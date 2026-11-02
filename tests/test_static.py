@@ -166,6 +166,15 @@ class StaticValidation(unittest.TestCase):
         self.assertIn("ADR-0007", text)
         self.assertIn("boot_tested", text)
 
+    def test_package_handles_debootstrap_os_release_diversion(self):
+        # Verified regression from ISO build #3: debootstrap leaves a local
+        # diversion of /etc/os-release that clashes with sanora-base's own.
+        preinst = (REPO_ROOT / "packages/sanora-base/DEBIAN/preinst").read_text()
+        self.assertIn("os-release.debootstrap", preinst)
+        self.assertIn("--local --remove --no-rename", preinst)
+        postrm = (REPO_ROOT / "packages/sanora-base/DEBIAN/postrm").read_text()
+        self.assertIn("dpkg-divert", postrm)
+
     def test_developer_documentation_exists_and_is_actionable(self):
         required = [
             "docs/development/BUILDING.md",

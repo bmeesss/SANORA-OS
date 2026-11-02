@@ -4,7 +4,7 @@ set -e
 
 case "$1" in
     remove|purge)
-        if dpkg-divert --list | grep -Fq "by sanora-base"; then
+        if dpkg-divert --list /etc/os-release | grep -Fq "by sanora-base"; then
             dpkg-divert --package sanora-base --remove --rename \
                 --divert /etc/os-release.debian /etc/os-release || true
         fi

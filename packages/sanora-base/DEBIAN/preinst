@@ -1,18 +1,31 @@
 #!/bin/sh
-# sanora-base: divert Debian's /etc/os-release symlink before unpacking.
+# sanora-base: prepare /etc/os-release for the SANORA identity.
 #
-# Debian's base-files owns /etc/os-release (normally a symlink to
-# ../usr/lib/os-release). SANORA OS needs its own values there. A dpkg-divert is
-# the standard Debian mechanism for replacing a file owned by another package;
-# editing base-files or forking it would break upgrades.
+# Debian's base-files owns /etc/os-release, so a dpkg-divert is the standard
+# mechanism for replacing it without forking base-files or editing its files.
 #
-# This is a documented, minimal system-level change. It has NOT been tested by
-# installing the package on a running trixie system yet.
+# IMPORTANT (verified failure in build #3 of .github/workflows/iso.yml):
+# debootstrap -- used by live-build's bootstrap stage -- leaves a *local*
+# diversion of /etc/os-release to /etc/os-release.debootstrap. A second
+# diversion of the same path clashes with it:
+#   dpkg-divert: error: 'diversion of /etc/os-release to
+#   /etc/os-release.debian by sanora-base' clashes with 'local diversion of
+#   /etc/os-release to /etc/os-release.debootstrap'
+# live-build removes that local diversion itself in scripts/build/chroot_hacks
+# ("Now that all packages are installed, remove the os-release divert"), but
+# chroot_hacks runs AFTER chroot_install-packages, i.e. after this preinst.
+# We therefore remove it here first, using the exact command live-build uses.
+#
+# Reference: live-build 1:20250505+deb13u1 scripts/build/chroot_hacks,
+# retrieved 2026-11-02 from https://sources.debian.org/src/live-build/.
 set -e
 
 case "$1" in
     install|upgrade)
-        if ! dpkg-divert --list | grep -Fq "by sanora-base"; then
+        if dpkg-divert --list /etc/os-release | grep -q 'os-release.debootstrap'; then
+            dpkg-divert --quiet --local --remove --no-rename /etc/os-release
+        fi
+        if ! dpkg-divert --list /etc/os-release | grep -Fq 'by sanora-base'; then
             dpkg-divert --package sanora-base --add --rename \
                 --divert /etc/os-release.debian /etc/os-release
         fi
