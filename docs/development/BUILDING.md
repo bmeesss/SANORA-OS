@@ -195,8 +195,16 @@ It contains explicit gates: `nvidia_in_iso`, `boot_tested`,
   ephemeral development key. Without a key the script refuses to build an
   unsigned archive (ADR-0012, `repo/README.md`). This adds `gnupg` and
   `apt-utils` as host dependencies.
-- `iso.yml` now runs `diffoscope` and a squashfs file-metadata diff on the two
+- `build.sh` exports `MKSQUASHFS_OPTIONS="-all-time ${SOURCE_DATE_EPOCH}"`,
+  an upstream `mksquashfs` option that normalises file mtimes inside the
+  squashfs. `diffoscope` on run `41519403741` showed dpkg-trigger files
+  (`/var/lib/ucf`, `/var/lib/systemd/deb-systemd-user-helper-enabled`,
+  `/var/lib/xml-core`, `/var/lib/xkb`, `/var/lib/vim`) with wall-clock mtimes
+  were the main cause of the two same-commit ISOs differing.
+- `iso.yml` now runs `diffoscope` and a cheap chroot file-list diff on the two
   same-commit ISOs (`out/diffoscope.txt`, `out/squashfs-metadata-diff.txt`),
+  scoped to the evidence files because unpacking two full ISOs exhausts the
+  GitHub runner's disk,
   downloads the official Debian 13 KDE live ISO and measures it with the same
   VM configuration (`out/baseline/baseline-comparison.json`), and adds clean-
   account theme checks to `tests/boot/qemu_boot.py`.

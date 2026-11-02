@@ -180,6 +180,12 @@ class StaticValidation(unittest.TestCase):
         for entry in ("/out/", "/build/work/", "*.deb"):
             self.assertIn(entry, text, f".gitignore must cover {entry}")
 
+    def test_build_script_clamps_squashfs_mtimes(self):
+        text = (REPO_ROOT / "build.sh").read_text()
+        self.assertIn("MKSQUASHFS_OPTIONS", text)
+        self.assertIn("-all-time", text)
+        self.assertIn("SOURCE_DATE_EPOCH", text)
+
     def test_build_metadata_schema_mentions_nvidia_gate(self):
         text = (REPO_ROOT / "build/scripts/write-metadata.py").read_text()
         self.assertIn("ADR-0007", text)

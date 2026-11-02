@@ -1,0 +1,95 @@
+name: Inspect ISO evidence
+
+# Publishes selected small evidence files from a previous ISO run as a
+# readable check run, because this sandbox cannot download Actions logs or
+# artifacts from the Azure blob hosts.
+
+on:
+  push:
+    branches: [ "arena/fa064594-sanora-os" ]
+    paths:
+      - ".github/INSPECT_TRIGGER"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read source run id
+        id: src
+        run: |
+          RID="$(grep -oE 'source-run-id: *[0-9]+' .github/INSPECT_TRIGGER | awk '{print $2}')"
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "Source run: $RID"
+
+      - name: Download evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sanora-iso-and-evidence
+          run-id: ${{ steps.src.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/evidence
+
+      - name: Publish evidence as check run
+        env:
+          API_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path("/tmp/evidence")
+          wanted = [
+              "out/boot-uefi/boot-validation.json",
+              "out/boot-bios/boot-validation.json",
+              "out/boot-uefi/theme-checks.txt",
+              "out/boot-uefi/performance-baseline.txt",
+              "out/build-metadata.json",
+              "out/reproducibility.json",
+              "out/diffoscope.txt",
+              "out/squashfs-metadata-diff.txt",
+              "out/baseline/baseline-comparison.json",
+              "build/work/repo-metadata.json",
+              "build/work/versions.json",
+          ]
+          parts = []
+          for name in wanted:
+              p = root / name
+              if p.is_file():
+                  body = p.read_text(errors="replace")
+                  if len(body) > 6000:
+                      body = "...[truncated]...\n" + body[-6000:]
+                  parts.append(f"===== {name} =====\n{body}")
+          text = "\n".join(parts) if parts else "(no evidence files found)"
+          text = text[-60000:]
+          body = {
+              "name": "SANORA ISO evidence inspection",
+              "head_sha": os.environ["HEAD_SHA"],
+              "status": "completed",
+              "conclusion": "neutral",
+              "output": {
+                  "title": "SANORA ISO evidence inspection",
+                  "summary": "Selected build/boot/reproducibility evidence.",
+                  "text": text,
+              },
+          }
+          pathlib.Path("/tmp/inspect.json").write_text(json.dumps(body))
+          print("payload bytes:", len(json.dumps(body)))
+          PY
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $API_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/inspect.json \
+            "https://api.github.com/repos/$REPOSITORY/check-runs" > /tmp/inspect-response.json
+          python3 -c "import json;print('check-run id',json.load(open('/tmp/inspect-response.json'))['id'])"

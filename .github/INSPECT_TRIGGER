@@ -1,0 +1,7 @@
+SANORA OS ISO evidence inspection trigger.
+
+Pushing a change to THIS file triggers .github/workflows/inspect.yml, which
+downloads the small evidence artifact from the run named below and publishes
+its text as a readable check run.
+
+source-run-id: 41519403741
