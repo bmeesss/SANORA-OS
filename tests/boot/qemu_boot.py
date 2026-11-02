@@ -316,7 +316,13 @@ def main() -> int:
         result["errors"].append("python3-pexpect missing; boot test SKIPPED.")
         return finish(0)
 
-    result["iso_sha256"] = hashlib.sha256(iso.read_bytes()).hexdigest()
+    # Stream the checksum: a live ISO is several GB and must not be slurped
+    # into the QEMU host's RAM.
+    digest = hashlib.sha256()
+    with iso.open("rb") as fh:
+        for block in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(block)
+    result["iso_sha256"] = digest.hexdigest()
     result["iso_size_bytes"] = iso.stat().st_size
 
     kvm = os.path.exists("/dev/kvm") and os.access("/dev/kvm", os.W_OK)

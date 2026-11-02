@@ -103,13 +103,16 @@ def main() -> int:
         except (OSError, ValueError):
             versions = None
 
-    # Exact package versions placed into the ISO by live-build, if present.
-    packages_file = work / "binary.packages"
+    # Exact package set recorded by live-build. The chroot stage writes
+    # chroot.packages.live; the binary stage writes binary.packages.
     package_count = None
-    if packages_file.is_file():
-        package_count = sum(
-            1 for line in packages_file.read_text(errors="replace").splitlines() if line.strip()
-        )
+    for name in ("chroot.packages.live", "binary.packages", "chroot.packages.install"):
+        candidate = work / name
+        if candidate.is_file():
+            package_count = sum(
+                1 for line in candidate.read_text(errors="replace").splitlines() if line.strip()
+            )
+            break
 
     metadata = {
         "schema": "sanora.build-metadata/1",

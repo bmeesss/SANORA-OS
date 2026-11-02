@@ -56,6 +56,9 @@ jobs:
       - name: Show environment
         run: |
           . /etc/os-release && echo "Host: $PRETTY_NAME"
+          # Container jobs can trip git's "dubious ownership" check; add the
+          # workspace so build.sh can derive SOURCE_DATE_EPOCH and the commit.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "Commit: $(git rev-parse HEAD)"
           echo "live-build: $(lb --version 2>/dev/null || echo unknown)"
           echo "QEMU: $(qemu-system-x86_64 --version | head -1)"
@@ -70,11 +73,14 @@ jobs:
         # preserved and the first error lines are surfaced as annotations.
         run: |
           set +e
-          set -o pipefail
           ./build.sh 2>&1 | tee build/work/build-full.log
-          rc=$?
+          # Use build.sh's own status. A failure in `tee` (e.g. a transient
+          # write error) must not be reported as an ISO build failure.
+          statuses=("${PIPESTATUS[@]}")
+          rc="${statuses[0]}"
+          tee_rc="${statuses[1]:-0}"
           set -e
-          echo "::notice::SANORA build exit code: $rc"
+          echo "::notice::SANORA build exit code: $rc (tee exit code: $tee_rc)"
           if [ "$rc" -ne 0 ]; then
             grep -nE '(^E:|ERROR|error:|FAILED|fatal:|dpkg: error|W: Failed|no such)' \
               build/work/build-full.log | tail -8 > /tmp/sanora-error-lines.txt || true
@@ -98,16 +104,30 @@ jobs:
       - name: Boot validation - UEFI (primary)
         if: always()
         run: |
-          python3 tests/boot/qemu_boot.py --iso "$(find out -maxdepth 1 -name '*.iso' -print -quit)" \
-            --mode uefi --out out/boot-uefi --timeout 420
+          ISO="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
+          echo "::notice::UEFI boot test ISO='${ISO}'"
+          set +e
+          python3 tests/boot/qemu_boot.py --iso "$ISO" --mode uefi \
+            --out out/boot-uefi --timeout 420
+          rc=$?
+          set -e
           cat out/boot-uefi/boot-validation.json || true
+          echo "::notice::UEFI boot harness exit: $rc"
+          exit "$rc"
 
       - name: Boot validation - Legacy BIOS
         if: always()
         run: |
-          python3 tests/boot/qemu_boot.py --iso "$(find out -maxdepth 1 -name '*.iso' -print -quit)" \
-            --mode bios --out out/boot-bios --timeout 300
+          ISO="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
+          echo "::notice::BIOS boot test ISO='${ISO}'"
+          set +e
+          python3 tests/boot/qemu_boot.py --iso "$ISO" --mode bios \
+            --out out/boot-bios --timeout 300
+          rc=$?
+          set -e
           cat out/boot-bios/boot-validation.json || true
+          echo "::notice::BIOS boot harness exit: $rc"
+          exit "$rc"
 
       - name: Upload ISO, metadata and boot evidence
         if: always()
@@ -132,13 +152,27 @@ jobs:
           set -e
           python3 - <<'PY'
           import json, os, pathlib
+          wanted = [
+              "out/boot-uefi/boot-validation.json",
+              "out/boot-bios/boot-validation.json",
+              "out/boot-uefi/guest-checks.txt",
+              "out/boot-uefi/locale-checks.txt",
+              "out/boot-uefi/calamares-checks.txt",
+              "out/boot-uefi/serial.log",
+              "out/build-metadata.json",
+              "build/work/versions.json",
+              "build/work/build-full.log",
+          ]
           parts = []
-          for name in ("build/work/build-full.log", "build/work/live/build.log",
-                       "out/build-metadata.json"):
+          for name in wanted:
               p = pathlib.Path(name)
               if p.is_file():
-                  parts.append(f"===== {name} =====\n" + p.read_text(errors="replace"))
-          text = "\n".join(parts) if parts else "(no build log was produced)"
+                  body = p.read_text(errors="replace")
+                  # Keep the useful tail of large logs.
+                  if len(body) > 12000:
+                      body = "...[truncated]...\n" + body[-12000:]
+                  parts.append(f"===== {name} =====\n{body}")
+          text = "\n".join(parts) if parts else "(no build/boot evidence produced)"
           # GitHub check-run output.text is limited to 65535 characters.
           text = text[-60000:]
           body = {
