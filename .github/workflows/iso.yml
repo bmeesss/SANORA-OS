@@ -24,7 +24,8 @@ on:
     - cron: "17 4 * * 0"
 
 permissions:
-  contents: write   # needed to publish full CI evidence back to this branch
+  contents: read
+  checks: write     # publish the full build log as a readable check-run output
   actions: read
 
 jobs:
@@ -65,11 +66,23 @@ jobs:
         run: SANORA_SKIP_NETWORK_CHECK=0 bash build/scripts/preflight.sh
 
       - name: Build ISO with the existing build system
-        # `tee` keeps the complete output in a file that is published back to
-        # the branch; pipefail preserves build.sh's real exit status.
+        # `tee` keeps the complete output in a file. The real exit status is
+        # preserved and the first error lines are surfaced as annotations.
         run: |
+          set +e
           set -o pipefail
           ./build.sh 2>&1 | tee build/work/build-full.log
+          rc=$?
+          set -e
+          echo "::notice::SANORA build exit code: $rc"
+          if [ "$rc" -ne 0 ]; then
+            grep -nE '(^E:|ERROR|error:|FAILED|fatal:|dpkg: error|W: Failed|no such)' \
+              build/work/build-full.log | tail -8 > /tmp/sanora-error-lines.txt || true
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done < /tmp/sanora-error-lines.txt
+          fi
+          exit "$rc"
 
       - name: Collect measured component versions
         if: success()
@@ -108,33 +121,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Publish complete build evidence to this branch
+      - name: Publish complete build log as a readable check run
         if: always()
+        env:
+          API_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -e
-          D=".github/ci-logs/run-${{ github.run_id }}"
-          mkdir -p "$D"
-          for f in build/work/build-full.log build/work/live/build.log \
-                   build/work/versions.json out/build-metadata.json \
-                   out/SHA256SUMS out/boot-uefi/boot-validation.json \
-                   out/boot-bios/boot-validation.json \
-                   out/boot-uefi/guest-checks.txt out/boot-uefi/serial.log \
-                   out/boot-bios/serial.log; do
-            if [ -f "$f" ]; then cp "$f" "$D/"; fi
-          done
-          echo "=== first error lines (also emitted as annotations) ==="
-          if [ -f build/work/build-full.log ]; then
-            grep -nE '(^E:|ERROR|error:|FAILED|fatal:|dpkg: error|live-build|W: Failed)' \
-              build/work/build-full.log | tail -10 | tee "$D/first-errors.txt" || true
-            while IFS= read -r line; do
-              [ -n "$line" ] && echo "::error::$line"
-            done < "$D/first-errors.txt"
-            echo "=== build log tail ==="; tail -60 build/work/build-full.log
-          fi
-          git config user.name "sanora-ci"
-          git config user.email "ci@users.noreply.github.com"
-          git add .github/ci-logs
-          if ! git diff --cached --quiet; then
-            git commit -m "ci: publish evidence for run ${{ github.run_id }}"
-            git push origin "HEAD:${{ github.ref_name }}"
-          fi
+          python3 - <<'PY'
+          import json, os, pathlib
+          parts = []
+          for name in ("build/work/build-full.log", "build/work/live/build.log",
+                       "out/build-metadata.json"):
+              p = pathlib.Path(name)
+              if p.is_file():
+                  parts.append(f"===== {name} =====\n" + p.read_text(errors="replace"))
+          text = "\n".join(parts) if parts else "(no build log was produced)"
+          # GitHub check-run output.text is limited to 65535 characters.
+          text = text[-60000:]
+          body = {
+              "name": "SANORA build diagnostics",
+              "head_sha": os.environ["HEAD_SHA"],
+              "status": "completed",
+              "conclusion": "neutral",
+              "output": {
+                  "title": "SANORA ISO build diagnostics (run " + os.environ["RUN_ID"] + ")",
+                  "summary": "Complete build output, most recent lines retained.",
+                  "text": text,
+              },
+          }
+          pathlib.Path("/tmp/sanora-check.json").write_text(json.dumps(body))
+          print("diagnostic payload bytes:", len(json.dumps(body)))
+          PY
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $API_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/sanora-check.json \
+            "https://api.github.com/repos/$REPOSITORY/check-runs" \
+            > /tmp/sanora-check-response.json
+          python3 -c "import json;d=json.load(open('/tmp/sanora-check-response.json'));print('check-run id',d['id'])"
