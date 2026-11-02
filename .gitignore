@@ -29,3 +29,6 @@ __pycache__/
 *.swp
 *~
 .DS_Store
+
+# Scratch images decoded from CI diagnostics
+/install-*.png
