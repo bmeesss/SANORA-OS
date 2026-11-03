@@ -41,7 +41,7 @@ class InstallHarnessValidation(unittest.TestCase):
     def test_driver_uses_calamares_install_mnemonic(self):
         # Verified: ViewManager.cpp tr("&Install", "@button").
         self.assertIn("alt+i", self.driver)
-        self.assertIn("AT_SPI_BUS_ADDRESS", self.driver)
+        self.assertIn("Do NOT force AT_SPI_BUS_ADDRESS", self.driver)
 
     def test_harness_requires_wrong_passphrase_rejection(self):
         self.assertIn("installed-wrong-passphrase", self.harness)

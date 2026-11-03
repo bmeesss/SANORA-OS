@@ -471,21 +471,12 @@ def main():
             "ATSPI", timeout=30,
         )
 
-        # Qt's AT-SPI bridge registers on the ACCESSIBILITY bus, not the
-        # session bus. Calamares must be given its address at startup, or it
-        # never appears in pyatspi's desktop tree (verified in runs
-        # 41533764392 and 41609868964). Read the address written by
-        # at-spi-bus-launcher and pass it to both Calamares and the driver.
-        a11y = guest_cmd(
-            child,
-            "grep -m1 '^DBUS_SESSION_BUS_ADDRESS=' /run/user/1000/at-spi/bus_0 "
-            "2>/dev/null | cut -d= -f2-; "
-            "ls -l /run/user/1000/at-spi/ 2>/dev/null | head -5",
-            "A11Y", timeout=30,
-        ).strip().splitlines()
-        a11y_addr = a11y[0].strip() if a11y else ""
-        result["evidence"]["at_spi_bus_address_present"] = bool(a11y_addr)
-        a11y_env = f"AT_SPI_BUS_ADDRESS={shlex.quote(a11y_addr)} " if a11y_addr else ""
+        # NOTE: forcing AT_SPI_BUS_ADDRESS was tried in run 41670004712 and
+        # made pyatspi abort (SIGTRAP: "AT-SPI: Couldn't connect to
+        # accessibility bus"). The keyboard fallback is the proven path, so we
+        # do not override the bus address. AT-SPI discovery remains a
+        # best-effort path in the driver; the AT-SPI bus launchers above are
+        # harmless. No claim that AT-SPI widget discovery works.
 
         # Discover the SDDM Xauthority and start Calamares with accessibility on.
         xauth = guest_cmd(
@@ -502,7 +493,7 @@ def main():
             "QT_QPA_PLATFORM=xcb QT_ACCESSIBILITY=1 "
             "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 "
             "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "XDG_RUNTIME_DIR=/run/user/1000 " + a11y_env +
+            "XDG_RUNTIME_DIR=/run/user/1000 "
             "calamares -D6 > /tmp/sanora-calamares.log 2>&1; "
             "sleep 8; pgrep -a calamares || echo CALAMARES_NOT_RUNNING"
         )
@@ -520,7 +511,7 @@ def main():
             f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
             "HOME=/home/user "
             "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "XDG_RUNTIME_DIR=/run/user/1000 " + a11y_env +
+            "XDG_RUNTIME_DIR=/run/user/1000 "
             f"python3 {driver_path} {encrypt_flag} "
             f"--timeout {args.timeout} --user {shlex.quote(args.user)} "
             f"--password {shlex.quote(args.password)} "
