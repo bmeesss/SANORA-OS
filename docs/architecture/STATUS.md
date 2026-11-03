@@ -350,7 +350,7 @@ console appended, which is a slightly different boot path. The SANORA ISO has
 Debian KDE uses a different package set — so these are not like-for-like
 product comparisons yet.
 
-## Installer (Priority 1) — implemented but NOT validated end-to-end
+## Installer (Priority 1) — plain installation and reboot VERIFIED
 
 Implemented:
 
@@ -359,46 +359,73 @@ Implemented:
   `partitionLayout` with an unencrypted `/boot` ext4 (`noEncrypt: true`) and a
   LUKS2 ext4 root; Calamares prepends the EFI System Partition. ADR-0011
   documents the GRUB/LUKS2/Argon2id investigation (GRUB 2.12 needs PBKDF2;
-  Calamares has no PBKDF key; PBKDF2 rejected as weaker and requiring custom
-  scripting — an unencrypted `/boot` keeps Argon2id and lets GRUB read the
-  kernel without unlocking root). `cryptsetup-initramfs`, `grub-efi-amd64` and
-  `libxcb-cursor0` are installed.
+  Calamares 3.3.14 has no PBKDF key; PBKDF2 was rejected as weaker and
+  requiring custom scripting — an unencrypted `/boot` keeps Argon2id and lets
+  GRUB read the kernel without unlocking root). `cryptsetup-initramfs`,
+  `grub-efi-amd64` and `libxcb-cursor0` are installed.
 - `tests/install/qemu_install.py`: disposable UEFI QEMU VM with a 24G qcow2
-  disk, serial console, boot-menu Enter injection, Calamares launch, GUI
-  automation driver, power-off and a second boot **from the disk only**, with
-  validation of identity, user, locale, GPT/ESP, GRUB, LUKS2, Wayland and
-  theme. A running Calamares process is not treated as success.
+  disk, persistent OVMF CODE/VARS pflash, serial console, boot-menu Enter
+  injection, Calamares launch, GUI driver, power-off and a second boot **from
+  the disk only**, with validation of identity, user, locale, GPT/ESP, GRUB,
+  LUKS2, Wayland and theme. A running Calamares process is not treated as
+  success.
 - `tests/install/calamares_driver.py`: AT-SPI widget discovery plus a
-  keyboard fallback (documented `&Next` mnemonic), uploaded into the guest
-  from the checkout so iterations need no ISO rebuild.
+  keyboard fallback using the verified Calamares 3.3.14 mnemonics
+  (`&Next` = Alt+N, `&Install` = Alt+I), uploaded into the guest from the
+  checkout so iterations need no ISO rebuild.
 - `.github/workflows/install.yml` (fast, downloads a prior ISO artifact).
+  The harness appends `console=ttyS0,115200` to the installed `grub.cfg`
+  **for serial-console observability only** — no partition, filesystem or
+  package data is altered.
 
-Verified in the QEMU VM (iterations 7–9):
+**Verified end-to-end** (run `41629942048`, check run `125901228530`,
+`out/install-plain/install-validation.json`):
 
-- The ISO boots in UEFI mode, a serial login shell is obtained, Calamares
-  starts as an XWayland client (`SANORA OS Installer`, 1024×520).
-- The driver navigates welcome → locale → keyboard → partition → users →
-  summary; Calamares' own log shows the planned GPT layout:
-  `EFI` (fat32, `/boot/efi`), `SANORA-BOOT` (ext4, `/boot`), `SANORA-ROOT`
-  (ext4, `/`). The user fields were accepted (the summary page was reached).
-- `cryptsetup luksDump`, the exec phase, the installed-system boot, GRUB and
-  LUKS2 unlock were **NOT** reached.
+- Calamares started (`SANORA OS Installer`, 1024x520), the driver navigated
+  welcome -> locale -> keyboard -> partition -> users -> summary and activated
+  Install. Calamares executed **all 41 jobs** (log shows
+  `Starting job "Unmounting file systems..." ( 41 / 41 )`).
+  `driver_verdict: SUCCESS`, `installation_completed: true`.
+- The VM was powered off and rebooted **from the disk only**. OVMF loaded
+  `Boot0008 "SANORA_OS"` -> `\EFI\SANORA_OS\shimx64.efi`.
+  `installed_serial_login: true`.
+- Installed-system evidence (`installed-checks.txt`):
 
-Exact blockers found and fixed during the iterations: pflash CODE/VARS did not
-produce a serial console (switched to the verified combined OVMF `-bios`);
-the boot menu waits for a keypress (added `sendkey ret`); root could not see
-the user's AT-SPI bus (driver now runs as uid 1000 with
-`DBUS_SESSION_BUS_ADDRESS`); `xdotool search` hit a 3×3 helper window (now
-selects the named 1024×520 window by geometry); Calamares was launched as a
-native Wayland client (now `QT_QPA_PLATFORM=xcb`); the `Install` button has no
-`&Next` mnemonic (added `Return` + coordinate click). The **exec phase still
-does not start**: `install-validation.json` reports
-`installation_completed: false`, `driver_verdict: NO_VERDICT`, error
-`Calamares did not report installation complete`; `lsblk` shows no target
-filesystems. No ISO rebuild or code change made the installer complete.
+| Check | Result |
+|---|---|
+| `/etc/os-release` | `NAME="SANORA OS"`, `ID="sanora"`, `ID_LIKE="debian"`, `DEFAULT_LANGUAGE="en"` |
+| `sanora-info` | SANORA OS 0.1.0-dev, Debian 13 trixie, amd64, KDE Plasma (Wayland), Build ID `48fc623-1793655027` |
+| User / hostname | `sanora` / `sanora-pc` |
+| Locale | `LANG=en_US.UTF-8` |
+| GPT layout | `vda1 300M vfat /boot/efi`, `vda2 1G ext4 /boot`, `vda3 22.7G ext4 /` |
+| Root mount | `/dev/vda3 ext4 /` |
+| GRUB / ESP | `EFI/BOOT/bootx64.efi`, `EFI/SANORA_OS/shimx64.efi`, `grubx64.efi`, `grub.cfg` |
+| Global Theme | `org.sanora.light.desktop`, `SANORA_THEME_PRESENT` |
+| Boot | `systemd-analyze`: 6.916 s total; `uname`: `Linux sanora-pc 6.12.115+deb13.1-amd64` |
 
-**Therefore: "Calamares completes an actual installation" and "installed
-system boots" are NOT achieved.** No claim of a working installer is made.
+`installed.checks` booleans `true`: `os_release_sanora`, `sanora_info`,
+`correct_user`, `english_locale`, `root_filesystem`, `efi_system_partition`,
+`grub_installed`, `sanora_theme`, `global_theme_selected`, `luks2` (forced
+true for the plain scenario — LUKS is not applicable there).
+
+**Not verified / PARTIAL:**
+
+- `wayland: false` in `installed.checks`. Validation logs in over the serial
+  console; SDDM was still at the greeter and no graphical user session was
+  started, so the installed system's Wayland session was **not** verified.
+  Wayland **is** verified on the live ISO by `qemu_boot.py` (session type
+  `wayland`, `kwin_wayland` running). This gap is recorded explicitly as
+  `installed.wayland_note`; no claim of Wayland on the installed system is
+  made.
+- **LUKS2 encryption was not enabled in this installation.** The plain
+  scenario deliberately skips the encryption checkbox. `cryptsetup luksDump
+  /dev/vda3` returns "Device /dev/vda3 is not a valid LUKS device" — correct
+  for a plain install. An encrypted installation with passphrase entry,
+  LUKS2 unlock at boot and a reboot into the decrypted root is **NOT**
+  validated. ADR-0011 remains a design decision, not a verified feature.
+
+Overall harness verdict: `status: PARTIAL` — a real installation and a real
+boot into the installed system were achieved, with the two gaps above.
 
 ## Regression tests
 
@@ -410,26 +437,29 @@ user-facing content is English; the default locale remains `en_US.UTF-8` with
 
 ## Genuine remaining blockers
 
-1. Completing the Calamares exec phase in the disposable VM (GUI automation),
-   then rebooting into the installed system and validating GRUB/LUKS2.
-2. LUKS2 unlock/PBKDF2 verification on a real encrypted installation.
-3. Full ISO reproducibility: needs a runner with >20 GB free for a complete
-   two-ISO `diffoscope` run; remaining differences are not fully attributed.
-4. Offline-managed release signing key and HTTPS SANORA repository.
-5. ADR-0007 (NVIDIA) — still `BLOCKED`, untouched.
+1. **LUKS2 encrypted installation**: the encryption checkbox, passphrase
+   entry, LUKS2 unlock and reboot into the decrypted root are not automated or
+   verified. ADR-0011 is still a design decision.
+2. **Wayland on the installed system**: the serial-console validation never
+   starts a graphical session; a GUI login check (or SDDM Wayland default)
+   is needed. Wayland on the live ISO is verified.
+3. **Full ISO reproducibility**: two same-commit ISOs still differ; a complete
+   two-ISO `diffoscope` needs a runner with >20 GB free. The remaining
+   differences are not fully attributed.
+4. **Offline-managed release signing key and HTTPS SANORA repository**.
+5. **ADR-0007 (NVIDIA)** — still `BLOCKED`, untouched.
 6. The local sandbox still has no `live-build`, QEMU or Debian mirror access;
    all real builds and VM tests happen in CI.
 
 ## Next 5 tasks
 
-1. Replace the GUI driver with a deterministic Calamares automation path
-   (e.g. drive the `Install` button via AT-SPI with the correct accessibility
-   bus, or a supported Calamares module-level test sequence) and complete one
-   installation.
-2. Boot the installed disk and validate `/etc/os-release`, user, locale,
-   keyboard, GPT/ESP, GRUB, `cryptsetup luksDump`, Wayland and theme.
-3. Perform the LUKS2 installation scenario and verify unlocking/reboot.
-4. Run full-ISO `diffoscope` on a larger runner and attribute/fix the remaining
+1. Automate the LUKS2 scenario (Encrypt checkbox + passphrase fields) and
+   verify `cryptsetup luksDump`, passphrase unlock and reboot.
+2. Validate the installed graphical Wayland session (GUI login or SDDM default
+   session) and the SANORA theme in that session.
+3. Run full-ISO `diffoscope` on a larger runner and attribute/fix the remaining
    nondeterministic inputs with upstream-supported mechanisms.
-5. Introduce an offline release signing key and a published signed SANORA APT
-   repository, then decide ADR-0007.
+4. Introduce an offline release signing key and a published signed SANORA APT
+   repository.
+5. Decide ADR-0007; only then consider NVIDIA licensing, driver pinning and
+   MOK/Secure Boot work.
