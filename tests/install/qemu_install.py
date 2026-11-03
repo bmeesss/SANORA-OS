@@ -235,7 +235,12 @@ def main():
         a = [
             "qemu-system-x86_64", "-no-reboot", "-m", "4096", "-smp", "2",
             "-machine", "q35",
-            "-bios", combined_fd,
+            # Split CODE/VARS pflash with a PERSISTENT vars file: GRUB's
+            # efibootmgr entry must survive the reboot from ISO to disk, which
+            # a combined read-only `-bios` image cannot do. The earlier pflash
+            # failure was the missing boot-menu Enter, now handled by run_phase.
+            "-drive", f"if=pflash,format=raw,readonly=on,file={code_fd}",
+            "-drive", f"if=pflash,format=raw,file={vars_fd}",
             "-drive", f"file={disk},if=virtio,format=qcow2",
             "-vga", "std", "-display", "none",
             "-serial", "stdio",
@@ -252,8 +257,8 @@ def main():
 
     result["vm"] = {
         "ram_mb": 4096, "vcpus": 2, "disk": "24G qcow2 virtio",
-        "firmware": combined_fd, "accel": "kvm" if kvm else "tcg",
-        "network": "qemu user-mode e1000", "uefi_vars_persisted": False,
+        "firmware": code_fd, "accel": "kvm" if kvm else "tcg",
+        "network": "qemu user-mode e1000", "uefi_vars_persisted": True,
     }
     screenshots_b64 = []
 

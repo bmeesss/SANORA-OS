@@ -106,10 +106,13 @@ jobs:
               "out/install-plain/install-serial.log",
               "out/install-plain/install-driver-log.txt",
               "out/install-plain/installed-checks.txt",
+              "out/install-plain/installed-serial.log",
+              "out/install-plain/installed-qemu-stderr.log",
               "out/install-luks/install-qemu-stderr.log",
               "out/install-luks/install-serial.log",
               "out/install-luks/install-driver-log.txt",
               "out/install-luks/installed-checks.txt",
+              "out/install-luks/installed-serial.log",
               # Verdicts last so they survive the 60k check-run truncation.
               "out/install-plain/install-validation.json",
               "out/install-luks/install-validation.json",
