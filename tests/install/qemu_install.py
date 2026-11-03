@@ -419,7 +419,9 @@ def main():
 
         encrypt_flag = "--encrypt" if args.mode == "luks" else ""
         driver = (
-            f"sudo -n env DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
+            "sudo -n -u user env "
+            f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
+            "HOME=/home/user "
             "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
             "XDG_RUNTIME_DIR=/run/user/1000 "
             f"python3 {driver_path} {encrypt_flag} "

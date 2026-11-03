@@ -332,6 +332,17 @@ def main() -> int:
         "luks": args.luks_passphrase,
     }
 
+    # Point pyatspi at the user's accessibility bus if the session did not
+    # export it. Qt registers its accessibility bridge on this bus.
+    if not os.environ.get("AT_SPI_BUS_ADDRESS"):
+        for candidate in ("/run/user/1000/at-spi/bus_0",):
+            p = pathlib.Path(candidate)
+            if p.is_file():
+                for line in p.read_text(errors="replace").splitlines():
+                    if line.startswith("DBUS_SESSION_BUS_ADDRESS="):
+                        os.environ["AT_SPI_BUS_ADDRESS"] = line.split("=", 1)[1]
+                        log(f"AT_SPI_BUS_ADDRESS={os.environ['AT_SPI_BUS_ADDRESS']}")
+                        break
     try:
         import pyatspi  # noqa: F401
     except ImportError as exc:
