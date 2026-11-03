@@ -232,3 +232,204 @@ optimisation was applied.
 4. Set up a signed local SANORA APT repository and remove `packages.chroot`.
 5. Decide ADR-0007; only then consider NVIDIA licensing, driver pinning and
    MOK/Secure Boot work.
+
+---
+
+# Phase 3 — Installation & Desktop Experience (updated 2026-11-03)
+
+This section records what was **actually verified** in the Phase 3 CI runs.
+Phase 2 results above (ISO build, UEFI/BIOS boot, SANORA identity) remain
+valid; Phase 3 adds the desktop identity, signed repository, reproducibility
+investigation, baseline comparison and the installer work.
+
+## Verified ISO build
+
+Authoritative run: [`41528961532`](https://github.com/bmeesss/SANORA-OS/actions/runs/41528961532),
+commit `48fc6237c793218653bb55c8321bc2f2af6f175f`, all 16 steps green.
+
+| Field | Value |
+|---|---|
+| ISO | `sanora-0.1.0-dev-amd64.iso` |
+| Size | `2,415,919,104` bytes |
+| SHA-256 (final/second build) | `3c679a6f6a1ef03c4b0c0c419d78f6c489d534f86b3161bdd5ff89459fcc651f` |
+| First same-commit build SHA-256 | `015f49057d93734ce8818637a3d95ba95286b4cd2c792cfe80840f9fc79e393e` |
+| Base | Debian 13.7 trixie, amd64 |
+| Kernel | `6.12.115+deb13.1-amd64` (unmodified Debian kernel) |
+| KDE Plasma | `4:6.3.6-1` |
+| Calamares | `3.3.14-1` |
+| live-build | `20250505+deb13u1` |
+| Installed packages | `1762` |
+| Build tool | Debian `live-build` (`lb config` / `lb build`); no custom builder |
+
+Earlier failed attempts and their fixes are listed under "FIXES" below.
+
+## Verified desktop identity (Priority 2)
+
+An original KDE Plasma identity is implemented with KDE's supported extension
+mechanisms only: two `Plasma/LookAndFeel` KPackages (light/dark),
+`SANORALight.colors` / `SANORADark.colors`, `sanora` / `sanora-dark` icon themes
+inheriting upstream Breeze with an original launcher icon, a `sanora` Plasma
+desktop theme with `FallbackTheme=default`, and
+`contents/layouts/org.kde.plasma.desktop-layout.js` (verified Plasma 6
+scripting API: `loadTemplate`, `panels`, `desktopsForActivity`, `writeConfig`).
+No Plasma source is modified and no Apple asset is used.
+
+**Clean-account QEMU check** (`out/boot-uefi/theme-checks.txt`, run
+`41528961532`, published as check run `125580589395`): with `HOME` and
+`XDG_CONFIG_HOME` pointed at an empty directory, `kreadconfig6` resolves to
+`org.sanora.light.desktop`, `SANORALight` and icon theme `sanora`. All theme
+assets are present, including `/usr/share/sanora/wallpapers/sanora-default.png`
+(117,570 bytes). A real bug was found and fixed: the theme referenced
+`sanora-default.png` while the package shipped only `sanora-wallpaper.png`;
+the package now ships both names.
+
+Not verified: a human visual review of the panel/wallpaper appearance; the
+screenshot is captured but not judged here. Breeze KWin decoration, Plasma
+style SVGs, splash animation and sound theme are intentionally inherited.
+
+## Verified signed APT repository (Priority 4)
+
+`build/scripts/build-repo.sh` builds a GPG-signed local archive
+(`pool/`, `Packages[.gz]`, `Release`, `Release.gpg`, `InRelease`, armoured
+public key) and verifies `Release.gpg` with `gpg --verify`; the build fails if
+verification fails. `build/scripts/assemble-config.sh` wires it into live-build
+through the supported `config/archives/` mechanism
+(`deb [signed-by=/etc/apt/trusted.gpg.d/sanora.key.chroot.asc] file://... sanora main`
+plus `sanora-base` in a package list). `lb build` installs `sanora-base` from
+that signed archive with dependency resolution. The ephemeral development key
+lives in `.sanora-dev-gnupg` (Git-ignored) and is stable across the two builds
+of the same commit. Offline test `tests/test_repo.py` exercises the whole
+generator with CLI test doubles. ADR-0012 documents key management; a public
+release still needs an offline-managed key and HTTPS mirror.
+
+## Reproducibility investigation (Priority 3)
+
+`diffoscope` is installed and executed in CI. Two builds of the **same commit**
+with the same `SOURCE_DATE_EPOCH` produce different ISOs
+(`identical: false`), while `build-metadata.json` is byte-identical except for
+`artifact.sha256` — so all build inputs, versions and package-list hashes are
+identical.
+
+- `diffoscope`/chroot file-list diff (run `41519403741`) identified the paths
+  with wall-clock mtimes: `/var/lib/ucf`,
+  `/var/lib/systemd/deb-systemd-user-helper-enabled`, `/var/lib/xml-core`,
+  `/var/lib/xkb`, `/var/lib/vim`, dpkg trigger files.
+- **`mksquashfs` already reads `SOURCE_DATE_EPOCH`** and clamps squashfs file
+  mtimes. An explicit `-all-time` was tried and **rejected**: run
+  `41527475099` failed with `FATAL ERROR: SOURCE_DATE_EPOCH and command line
+  options can't be used at the same time to set timestamp(s)`. The option was
+  removed; no ISO is manipulated post-hoc.
+- A full-ISO `diffoscope` run unpacks two 2.4 GB images and **kills the
+  GitHub-hosted runner** (runs `41505275082`, `41514773588` failed at that
+  step). diffoscope is therefore scoped to the reproducibility evidence
+  (chroot file lists, build metadata) and the cheap file-level diff. This is an
+  honest environment limitation, documented, not hidden.
+- Remaining differences are at ISO/bootloader level or in file contents; they
+  are **not yet fully attributed**. No claim of reproducibility is made.
+
+## Performance baseline (Priority 5)
+
+`tests/boot/qemu_baseline.py` boots the official
+`debian-live-13.7.0-amd64-kde.iso` with the same VM configuration (4096 MiB,
+2 vCPU, KVM, `e1000`, OVMF) and records the same metrics. Result
+(`out/baseline/baseline-comparison.json`, `status: MEASURED`, no errors):
+
+| Metric | SANORA dev ISO | Debian 13 KDE | Delta |
+|---|---|---|---|
+| `systemd-analyze` total | 16.608 s | 19.408 s | −2.8 s |
+| Idle RAM used (`free -m`) | 1483 MiB | 419 MiB | +1064 MiB |
+| Boot to serial shell | 28.1 s | 21.9 s | +6.2 s |
+| Processes | 189 | 134 | +55 |
+| Load average | `3.06 0.75 0.25` | `0.79 0.19 0.06` | — |
+
+**Baseline only.** No optimisation was applied and no performance achievement
+is claimed. Live-ISO RAM figures include the squashfs page cache on both
+systems; the Debian ISO was booted from its own kernel/initrd with a serial
+console appended, which is a slightly different boot path. The SANORA ISO has
+65 explicitly listed packages but APT resolves to 1762 installed packages, and
+Debian KDE uses a different package set — so these are not like-for-like
+product comparisons yet.
+
+## Installer (Priority 1) — implemented but NOT validated end-to-end
+
+Implemented:
+
+- `installer/calamares/modules/partition.conf` using verified Calamares 3.3.14
+  keys: `luksGeneration: luks2`, `enableLuksAutomatedPartitioning: true`,
+  `partitionLayout` with an unencrypted `/boot` ext4 (`noEncrypt: true`) and a
+  LUKS2 ext4 root; Calamares prepends the EFI System Partition. ADR-0011
+  documents the GRUB/LUKS2/Argon2id investigation (GRUB 2.12 needs PBKDF2;
+  Calamares has no PBKDF key; PBKDF2 rejected as weaker and requiring custom
+  scripting — an unencrypted `/boot` keeps Argon2id and lets GRUB read the
+  kernel without unlocking root). `cryptsetup-initramfs`, `grub-efi-amd64` and
+  `libxcb-cursor0` are installed.
+- `tests/install/qemu_install.py`: disposable UEFI QEMU VM with a 24G qcow2
+  disk, serial console, boot-menu Enter injection, Calamares launch, GUI
+  automation driver, power-off and a second boot **from the disk only**, with
+  validation of identity, user, locale, GPT/ESP, GRUB, LUKS2, Wayland and
+  theme. A running Calamares process is not treated as success.
+- `tests/install/calamares_driver.py`: AT-SPI widget discovery plus a
+  keyboard fallback (documented `&Next` mnemonic), uploaded into the guest
+  from the checkout so iterations need no ISO rebuild.
+- `.github/workflows/install.yml` (fast, downloads a prior ISO artifact).
+
+Verified in the QEMU VM (iterations 7–9):
+
+- The ISO boots in UEFI mode, a serial login shell is obtained, Calamares
+  starts as an XWayland client (`SANORA OS Installer`, 1024×520).
+- The driver navigates welcome → locale → keyboard → partition → users →
+  summary; Calamares' own log shows the planned GPT layout:
+  `EFI` (fat32, `/boot/efi`), `SANORA-BOOT` (ext4, `/boot`), `SANORA-ROOT`
+  (ext4, `/`). The user fields were accepted (the summary page was reached).
+- `cryptsetup luksDump`, the exec phase, the installed-system boot, GRUB and
+  LUKS2 unlock were **NOT** reached.
+
+Exact blockers found and fixed during the iterations: pflash CODE/VARS did not
+produce a serial console (switched to the verified combined OVMF `-bios`);
+the boot menu waits for a keypress (added `sendkey ret`); root could not see
+the user's AT-SPI bus (driver now runs as uid 1000 with
+`DBUS_SESSION_BUS_ADDRESS`); `xdotool search` hit a 3×3 helper window (now
+selects the named 1024×520 window by geometry); Calamares was launched as a
+native Wayland client (now `QT_QPA_PLATFORM=xcb`); the `Install` button has no
+`&Next` mnemonic (added `Return` + coordinate click). The **exec phase still
+does not start**: `install-validation.json` reports
+`installation_completed: false`, `driver_verdict: NO_VERDICT`, error
+`Calamares did not report installation complete`; `lsblk` shows no target
+filesystems. No ISO rebuild or code change made the installer complete.
+
+**Therefore: "Calamares completes an actual installation" and "installed
+system boots" are NOT achieved.** No claim of a working installer is made.
+
+## Regression tests
+
+`./tests/run.sh`: **49 unit tests + shell syntax + Python syntax + ShellCheck
++ package-list check, all executed and passing** (2026-11-03). The phase-1
+architecture document is still byte-identical (SHA-256 pinned). All new
+user-facing content is English; the default locale remains `en_US.UTF-8` with
+`kreadconfig6` clean-account checks and `nl_NL.UTF-8` still usable.
+
+## Genuine remaining blockers
+
+1. Completing the Calamares exec phase in the disposable VM (GUI automation),
+   then rebooting into the installed system and validating GRUB/LUKS2.
+2. LUKS2 unlock/PBKDF2 verification on a real encrypted installation.
+3. Full ISO reproducibility: needs a runner with >20 GB free for a complete
+   two-ISO `diffoscope` run; remaining differences are not fully attributed.
+4. Offline-managed release signing key and HTTPS SANORA repository.
+5. ADR-0007 (NVIDIA) — still `BLOCKED`, untouched.
+6. The local sandbox still has no `live-build`, QEMU or Debian mirror access;
+   all real builds and VM tests happen in CI.
+
+## Next 5 tasks
+
+1. Replace the GUI driver with a deterministic Calamares automation path
+   (e.g. drive the `Install` button via AT-SPI with the correct accessibility
+   bus, or a supported Calamares module-level test sequence) and complete one
+   installation.
+2. Boot the installed disk and validate `/etc/os-release`, user, locale,
+   keyboard, GPT/ESP, GRUB, `cryptsetup luksDump`, Wayland and theme.
+3. Perform the LUKS2 installation scenario and verify unlocking/reboot.
+4. Run full-ISO `diffoscope` on a larger runner and attribute/fix the remaining
+   nondeterministic inputs with upstream-supported mechanisms.
+5. Introduce an offline release signing key and a published signed SANORA APT
+   repository, then decide ADR-0007.
