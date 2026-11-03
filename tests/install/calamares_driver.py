@@ -280,12 +280,14 @@ def keyboard_fallback(args, values, finish, steps):
         log(f"typed {label}")
     time.sleep(1)
     next_page("users -> summary")
-    # Summary page: the button label is "Install" (ExecutionViewStep).
-    xdo("key", "--clearmodifiers", "alt+n")
-    time.sleep(2)
+    # Summary page: the button label is "Install" (ExecutionViewStep), so the
+    # '&Next' mnemonic no longer applies. It is the dialog's default button;
+    # Return activates it. The coordinate click is a fallback.
+    xdo("key", "--clearmodifiers", "Return")
+    time.sleep(3)
     click_next()
     steps.append("clicked Install")
-    log("clicked Install")
+    log("clicked Install (Return + fallback click)")
 
     # Wait for the exec phase to create partitions on the target disk, then
     # allow generous time for unpackfs/bootloader before the host reboots.
