@@ -57,7 +57,8 @@ On a machine without `live-build` (including restricted CI sandboxes),
 | `repo/` | Signed SANORA APT repository design and key-management policy |
 | `tests/` | Offline suite (`tests/run.sh`) and QEMU boot/install harnesses |
 | `.github/` | Static validation, ISO build, boot/diffoscope/baseline and installation workflows |
-| `docs/development/` | Build, repository, testing, branding, i18n docs |
+| `docs/development/` | Build, repository, testing, branding, i18n and release-engineering docs |
+| `docs/development/RELEASE.md` | Versioning, signed-repository state, key-rotation policy, release process |
 | `docs/decisions/` | English ADRs and the decision index |
 | `SANORA_OS_ARCHITECTURE.md` | Phase-1 research document (Dutch, historical) |
 

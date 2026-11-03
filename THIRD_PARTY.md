@@ -70,4 +70,9 @@ risk R-08). It is not present yet.
    documentation — only after ADR-0007 is confirmed.
 3. Codec, font and AppStream metadata redistribution terms.
 4. A decision on the licence for documentation and branding assets.
-5. A signed SANORA APT repository and release-signing policy.
+5. A signed SANORA APT repository and release-signing policy. The build-time
+   repository is signed (ADR-0012), but the **release signing key** is still an
+   ephemeral development key. Key distribution and rotation are documented in
+   [docs/development/RELEASE.md](docs/development/RELEASE.md); a public
+   release requires an offline-managed key whose fingerprint is published
+   here before any ISO is released.

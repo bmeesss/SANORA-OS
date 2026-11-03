@@ -601,8 +601,15 @@ def main():
             time.sleep(8)
         except Exception:  # noqa: BLE001
             pass
+    except Exception as exc:  # noqa: BLE001 - evidence must always be written
+        result["errors"].append(
+            f"installation phase raised {type(exc).__name__}: {exc}")
+        result["phases"]["installation_completed"] = False
     finally:
         kill(child, hmp, handle)
+
+    if not result["phases"].get("installation_completed"):
+        return finish(1)
 
     # ---------------- Phase 2: boot installed system ----------------
     print("=== PHASE 2: boot installed system from disk ===", flush=True)
@@ -854,8 +861,9 @@ def main():
         )
         capture(hmp2, "installed-01-desktop")
 
-    except (pexpect.TIMEOUT, pexpect.EOF, OSError, ValueError) as exc:
-        result["errors"].append(f"installed-system validation raised: {exc}")
+    except Exception as exc:  # noqa: BLE001 - evidence must always be written
+        result["errors"].append(
+            f"installed-system validation raised {type(exc).__name__}: {exc}")
         result["status"] = "PARTIAL"
     finally:
         kill(child2, hmp2, handle2)

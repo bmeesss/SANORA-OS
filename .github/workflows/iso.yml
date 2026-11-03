@@ -52,7 +52,7 @@ jobs:
             cpio apt-utils bzip2 cryptsetup file rsync wget xz-utils \
             e2fsprogs parted systemd-container gzip zstd \
             qemu-system-x86 ovmf qemu-utils netpbm \
-            gnupg diffoscope xorriso
+            gnupg diffoscope xorriso genisoimage
 
       - name: Checkout
         uses: actions/checkout@v4

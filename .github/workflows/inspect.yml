@@ -73,6 +73,12 @@ jobs:
               "out/reproducibility.json",
               "out/diffoscope.txt",
               "out/squashfs-metadata-diff.txt",
+              "out/iso-listing-diff.txt",
+              "out/squashfs-sizes.txt",
+              "out/squashfs-list-1.txt",
+              "out/squashfs-list-2.txt",
+              "out/byte-diff.txt",
+              "out/repro-inputs.txt",
               "out/baseline/baseline-comparison.json",
               "build/work/repo-metadata.json",
               "build/work/versions.json",
@@ -82,8 +88,15 @@ jobs:
               p = root / name
               if p.is_file():
                   body = p.read_text(errors="replace")
-                  if len(body) > 6000:
-                      body = "...[truncated]...\n" + body[-6000:]
+                  # diffoscope.txt is the primary Phase 3.1 evidence; keep a
+                  # generous slice from the START so the superblock/squashfs
+                  # analysis is visible. Other files keep their tail.
+                  limit = 30000 if name.endswith("diffoscope.txt") else 6000
+                  if len(body) > limit:
+                      if name.endswith("diffoscope.txt"):
+                          body = body[:limit] + "\n...[truncated]..."
+                      else:
+                          body = "...[truncated]...\n" + body[-limit:]
                   parts.append(f"===== {name} =====\n{body}")
           # Install screenshots first so they survive the 60k truncation.
           shots = []
@@ -96,8 +109,8 @@ jobs:
           budget = 60000 - len(head) - 2000
           body_text = "\n".join(parts) if parts else "(no evidence files found)"
           if len(body_text) > budget and budget > 0:
-              body_text = "...[truncated]...\n" + body_text[-budget:]
-          text = (head + "\n" + body_text)[-60000:]
+              body_text = body_text[:budget] + "\n...[truncated]..."
+          text = (head + "\n" + body_text)[:60000]
           body = {
               "name": "SANORA ISO evidence inspection",
               "head_sha": os.environ["HEAD_SHA"],

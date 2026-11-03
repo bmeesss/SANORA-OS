@@ -101,6 +101,13 @@ jobs:
           set -e
           python3 - <<'PY'
           import base64, json, os, pathlib
+          # Verdicts FIRST and never truncated: the check-run output is capped
+          # at 65535 chars, so keeping the tail used to drop the JSON verdicts
+          # (run 41677121883). Cap the whole payload from the FRONT.
+          verdicts = [
+              "out/install-plain/install-validation.json",
+              "out/install-luks/install-validation.json",
+          ]
           wanted = [
               "out/install-plain/install-qemu-stderr.log",
               "out/install-plain/install-serial.log",
@@ -114,22 +121,23 @@ jobs:
               "out/install-luks/installed-serial.log",
               "out/install-luks/wrong-passphrase-serial.txt",
               "out/install-luks/installed-wrong-passphrase-serial.log",
-              # Verdicts last so they survive the 60k check-run truncation.
-              "out/install-plain/install-validation.json",
-              "out/install-luks/install-validation.json",
           ]
           parts = []
+          for name in verdicts:
+              p = pathlib.Path(name)
+              if p.is_file():
+                  body = p.read_text(errors="replace")
+                  parts.append(f"===== {name} =====\n{body}")
           for name in wanted:
               p = pathlib.Path(name)
               if p.is_file():
                   body = p.read_text(errors="replace")
-                  if len(body) > 7000:
-                      body = "...[truncated]...\n" + body[-7000:]
+                  if len(body) > 4000:
+                      body = "...[truncated]...\n" + body[-4000:]
                   parts.append(f"===== {name} =====\n{body}")
-          # One downscaled screenshot per phase, base64 for local inspection.
+          # Screenshots are evidence but must not push the verdicts out.
           budget = 60000 - sum(len(p) for p in parts) - 2000
-          for label in ("install-01-calamares-welcome", "install-partition-page",
-                        "install-02-finished", "installed-00-desktop",
+          for label in ("install-partition-page", "install-01-calamares-welcome",
                         "installed-graphical", "installed-01-desktop"):
               for base in ("out/install-plain", "out/install-luks"):
                   b64 = pathlib.Path(base) / f"{label}.png.b64"
@@ -139,7 +147,7 @@ jobs:
                           parts.append(f"===== SCREENSHOT {base}/{label} =====\n{data}")
                           budget -= len(data) + 200
           text = "\n".join(parts) if parts else "(no installation evidence)"
-          text = text[-60000:]
+          text = text[:60000]
           body = {
               "name": "SANORA installation diagnostics",
               "head_sha": os.environ["HEAD_SHA"],
