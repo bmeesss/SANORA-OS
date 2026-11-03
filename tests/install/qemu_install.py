@@ -135,20 +135,22 @@ def guest_cmd(child, command, tag, timeout=180):
 
 
 VALIDATE = (
+    "sleep 15; "  # let the graphical session finish starting
     "cat /etc/os-release; echo SEP; sanora-info; echo SEP; "
     "whoami; hostname; echo SEP; "
     "grep -E '^(LANG|LANGUAGE)=' /etc/default/locale; echo SEP; "
     "lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS; echo SEP; "
     "findmnt -no SOURCE,FSTYPE,TARGET /; echo SEP; "
     "ls -R /boot/efi/EFI 2>/dev/null | head -30; echo SEP; "
-    "sudo -n cryptsetup luksDump /dev/vda3 2>&1 | head -30; echo SEP; "
-    "sudo -n efibootmgr -v 2>&1 | head -20; echo SEP; "
+    "printf '%s\\n' 'Sanora-Dev-2026!' | sudo -S cryptsetup luksDump /dev/vda3 2>&1 | head -30; echo SEP; "
+    "printf '%s\\n' 'Sanora-Dev-2026!' | sudo -S efibootmgr -v 2>&1 | head -20; echo SEP; "
     "kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage; echo SEP; "
     "test -f /usr/share/plasma/look-and-feel/org.sanora.light.desktop/metadata.json "
     "&& echo SANORA_THEME_PRESENT || echo SANORA_THEME_MISSING; echo SEP; "
     "loginctl list-sessions --no-legend; echo SEP; "
     "for s in $(loginctl list-sessions --no-legend | awk '{print $1}'); do "
     "loginctl show-session -p Type --value $s; done; echo SEP; "
+    "pgrep -a kwin_wayland; pgrep -a startplasma-wayland; echo SEP; "
     "systemd-analyze; echo SEP; free -m; echo SEP; "
     "ps -e --no-headers | wc -l; echo SEP; "
     "cat /etc/calamares/branding/sanora/branding.desc | head -5; echo SEP; "
@@ -566,11 +568,12 @@ def main():
             "theme_present": secs[10] if len(secs) > 10 else "",
             "sessions": secs[11] if len(secs) > 11 else "",
             "session_types": secs[12] if len(secs) > 12 else "",
-            "systemd_analyze": secs[13] if len(secs) > 13 else "",
-            "free": secs[14] if len(secs) > 14 else "",
-            "process_count": secs[15] if len(secs) > 15 else "",
-            "branding": secs[16] if len(secs) > 16 else "",
-            "uname": secs[17] if len(secs) > 17 else "",
+            "kwin_wayland_processes": secs[13] if len(secs) > 13 else "",
+            "systemd_analyze": secs[14] if len(secs) > 14 else "",
+            "free": secs[15] if len(secs) > 15 else "",
+            "process_count": secs[16] if len(secs) > 16 else "",
+            "branding": secs[17] if len(secs) > 17 else "",
+            "uname": secs[18] if len(secs) > 18 else "",
         }
         r = result.setdefault("installed", {})
         r.update(evidence)
@@ -588,7 +591,8 @@ def main():
                      or "Version:       2" in evidence["luks_dump"],
             "sanora_theme": "SANORA_THEME_PRESENT" in evidence["theme_present"],
             "global_theme_selected": "org.sanora" in evidence["look_and_feel"],
-            "wayland": "wayland" in evidence["session_types"].lower(),
+            "wayland": "wayland" in evidence["session_types"].lower()
+                       or "kwin_wayland" in evidence["kwin_wayland_processes"],
         }
         result["installed"]["checks"] = checks
         result["status"] = "SUCCESS" if all(checks.values()) else "PARTIAL"
