@@ -39,6 +39,22 @@ jobs:
           github-token: ${{ github.token }}
           path: /tmp/evidence
 
+      - name: Read install run id
+        id: ins
+        run: |
+          RID="$(grep -oE 'install-run-id: *[0-9]+' .github/INSPECT_TRIGGER | awk '{print $2}')"
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "Install run: $RID"
+
+      - name: Download installer screenshots
+        if: steps.ins.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: sanora-install-evidence
+          run-id: ${{ steps.ins.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/install-evidence
+
       - name: Publish evidence as check run
         env:
           API_TOKEN: ${{ github.token }}
@@ -69,8 +85,19 @@ jobs:
                   if len(body) > 6000:
                       body = "...[truncated]...\n" + body[-6000:]
                   parts.append(f"===== {name} =====\n{body}")
-          text = "\n".join(parts) if parts else "(no evidence files found)"
-          text = text[-60000:]
+          # Install screenshots first so they survive the 60k truncation.
+          shots = []
+          ip = pathlib.Path("/tmp/install-evidence")
+          for b64 in sorted(ip.rglob("*.png.b64")):
+              data = b64.read_text(errors="replace")
+              if len(data) < 20000:
+                  shots.append(f"===== SCREENSHOT {b64.name} =====\n{data}")
+          head = "\n".join(shots[:3])
+          budget = 60000 - len(head) - 2000
+          body_text = "\n".join(parts) if parts else "(no evidence files found)"
+          if len(body_text) > budget and budget > 0:
+              body_text = "...[truncated]...\n" + body_text[-budget:]
+          text = (head + "\n" + body_text)[-60000:]
           body = {
               "name": "SANORA ISO evidence inspection",
               "head_sha": os.environ["HEAD_SHA"],
