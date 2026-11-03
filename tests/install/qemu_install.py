@@ -428,7 +428,7 @@ def main():
             f"--timeout {args.timeout} --user {shlex.quote(args.user)} "
             f"--password {shlex.quote(args.password)} "
             f"--luks-passphrase {shlex.quote(args.luks_passphrase)} "
-            "> /tmp/sanora-driver-stdout.log 2>&1; echo DRIVER_RC=$?"
+            "; echo DRIVER_RC=$?"
         )
         child.sendline(driver)
         # Wait for the driver's final RESULT line (it also writes a JSON file).
