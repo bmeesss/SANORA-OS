@@ -247,7 +247,9 @@ def keyboard_fallback(args, values, finish, steps):
             w = int(geom.get("WIDTH", "0")); h = int(geom.get("HEIGHT", "0"))
             if w < 300 or h < 200:
                 return
-            xdo("mousemove", str(x + w - 150), str(y + h - 34), "click", "1")
+            # Buttons are right-aligned as [Back] [Install] [Quit]; avoid the
+            # far-right Quit button.
+            xdo("mousemove", str(x + w - 170), str(y + h - 30), "click", "1")
         except (ValueError, TypeError):
             pass
 
@@ -280,14 +282,15 @@ def keyboard_fallback(args, values, finish, steps):
         log(f"typed {label}")
     time.sleep(1)
     next_page("users -> summary")
-    # Summary page: the button label is "Install" (ExecutionViewStep), so the
-    # '&Next' mnemonic no longer applies. It is the dialog's default button;
-    # Return activates it. The coordinate click is a fallback.
-    xdo("key", "--clearmodifiers", "Return")
+    # Calamares 3.3.14 ViewManager.cpp: the summary/execution button label is
+    # `tr("&Install", "@button")` (and "&Install Now" for the confirmation).
+    # There is NO setDefault() in CalamaresWindow.cpp, so Return does nothing;
+    # the mnemonic is Alt+I. Verified against the v3.3.14 source tree.
+    xdo("key", "--clearmodifiers", "alt+i")
     time.sleep(3)
     click_next()
     steps.append("clicked Install")
-    log("clicked Install (Return + fallback click)")
+    log("clicked Install (Alt+I + fallback click)")
 
     # Wait for the exec phase to create partitions on the target disk, then
     # allow generous time for unpackfs/bootloader before the host reboots.
