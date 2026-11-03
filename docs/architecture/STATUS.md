@@ -408,6 +408,15 @@ Implemented:
 `grub_installed`, `sanora_theme`, `global_theme_selected`, `luks2` (forced
 true for the plain scenario — LUKS is not applicable there).
 
+A second scenario (`--mode luks`, run `41634541077`) also completed an
+installation and rebooted into the installed system. **It produced a plain
+ext4 root, not a LUKS2 volume**: `lsblk` still shows `vda3 22.7G ext4 /` and
+`cryptsetup luksDump /dev/vda3` returns "Device /dev/vda3 is not a valid LUKS
+device". The keyboard fallback does not automate the `En&crypt system`
+checkbox and the two passphrase fields, so `--encrypt` had no effect. Both
+scenarios therefore validate a **plain** installation; the LUKS2 scenario is
+mislabelled in `install.yml` and is recorded here as a known gap.
+
 **Not verified / PARTIAL:**
 
 - `wayland: false` in `installed.checks`. Validation logs in over the serial
@@ -417,15 +426,18 @@ true for the plain scenario — LUKS is not applicable there).
   `wayland`, `kwin_wayland` running). This gap is recorded explicitly as
   `installed.wayland_note`; no claim of Wayland on the installed system is
   made.
-- **LUKS2 encryption was not enabled in this installation.** The plain
-  scenario deliberately skips the encryption checkbox. `cryptsetup luksDump
-  /dev/vda3` returns "Device /dev/vda3 is not a valid LUKS device" — correct
-  for a plain install. An encrypted installation with passphrase entry,
-  LUKS2 unlock at boot and a reboot into the decrypted root is **NOT**
-  validated. ADR-0011 remains a design decision, not a verified feature.
+- **LUKS2 encryption is NOT validated.** No encrypted volume was created in
+  either scenario. An encrypted installation with passphrase entry, LUKS2
+  unlock at boot and a reboot into the decrypted root has not been performed.
+  ADR-0011 remains a design decision, not a verified feature. `luks2: true`
+  in the plain scenario's `installed.checks` is forced by the harness because
+  LUKS is not applicable there — it is not evidence of encryption.
 
 Overall harness verdict: `status: PARTIAL` — a real installation and a real
-boot into the installed system were achieved, with the two gaps above.
+boot into the installed system were achieved (twice), with the two gaps above.
+The green `install.yml` job exit code means "installation completed and
+installed system booted", **not** "all checks passed". The JSON verdicts are
+the source of truth.
 
 ## Regression tests
 

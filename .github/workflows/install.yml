@@ -75,7 +75,11 @@ jobs:
           echo "::notice::plain install harness exit: $rc"
           exit "$rc"
 
-      - name: Installation - LUKS2
+      # KNOWN GAP: the keyboard fallback does not yet automate the
+      # `En&crypt system` checkbox and its two passphrase fields, so this
+      # scenario currently performs a second PLAIN installation. It is kept
+      # as regression coverage for the reboot path. See STATUS.md.
+      - name: Installation - LUKS2 scenario (encryption not yet automated)
         if: success()
         id: luks
         run: |
