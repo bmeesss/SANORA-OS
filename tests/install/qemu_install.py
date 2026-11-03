@@ -134,28 +134,90 @@ def guest_cmd(child, command, tag, timeout=180):
     return child.before or ""
 
 
-VALIDATE = (
-    "sleep 15; "  # let the graphical session finish starting
-    "cat /etc/os-release; echo SEP; sanora-info; echo SEP; "
-    "whoami; hostname; echo SEP; "
-    "grep -E '^(LANG|LANGUAGE)=' /etc/default/locale; echo SEP; "
-    "lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS; echo SEP; "
-    "findmnt -no SOURCE,FSTYPE,TARGET /; echo SEP; "
-    "ls -R /boot/efi/EFI 2>/dev/null | head -30; echo SEP; "
-    "printf '%s\\n' 'Sanora-Dev-2026!' | sudo -S cryptsetup luksDump /dev/vda3 2>&1 | head -30; echo SEP; "
-    "printf '%s\\n' 'Sanora-Dev-2026!' | sudo -S efibootmgr -v 2>&1 | head -20; echo SEP; "
-    "kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage; echo SEP; "
-    "test -f /usr/share/plasma/look-and-feel/org.sanora.light.desktop/metadata.json "
-    "&& echo SANORA_THEME_PRESENT || echo SANORA_THEME_MISSING; echo SEP; "
-    "loginctl list-sessions --no-legend; echo SEP; "
-    "for s in $(loginctl list-sessions --no-legend | awk '{print $1}'); do "
-    "loginctl show-session -p Type --value $s; done; echo SEP; "
-    "pgrep -af 'kwin_wayland|startplasma-wayland'; echo SEP; "
-    "systemd-analyze; echo SEP; free -m; echo SEP; "
-    "ps -e --no-headers | wc -l; echo SEP; "
-    "cat /etc/calamares/branding/sanora/branding.desc | head -5; echo SEP; "
-    "uname -a"
-)
+# Named sections: (key, shell command). Evidence is built from the same order,
+# so adding a check cannot silently shift positional indices (that broke an
+# earlier iteration). No command may contain the literal "SEP".
+SUDO = "printf '%s\n' 'Sanora-Dev-2026!' | sudo -S "
+VALIDATE_SECTIONS = [
+    ("os_release", "cat /etc/os-release"),
+    ("sanora_info", "sanora-info"),
+    ("user_host", "whoami; hostname"),
+    ("locale", "grep -E '^(LANG|LANGUAGE)=' /etc/default/locale"),
+    ("lsblk", "lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS"),
+    ("root_mount", "findmnt -no SOURCE,FSTYPE,TARGET /"),
+    ("efi_boot_files", "ls -R /boot/efi/EFI 2>/dev/null | head -30"),
+    ("luks_dump", SUDO + "cryptsetup luksDump /dev/vda3 2>&1 | head -40"),
+    ("crypttab", SUDO + "cat /etc/crypttab 2>&1"),
+    ("dmsetup", SUDO + "dmsetup ls --target crypt 2>&1"),
+    ("initramfs_crypto", SUDO +
+     "sh -c 'lsinitramfs /boot/initrd.img-$(uname -r) 2>/dev/null "
+     "| grep -iE \"cryptsetup|cryptroot|crypttab|dm-crypt|askpass|keyfile\" "
+     "| head -40'"),
+    ("efibootmgr", SUDO + "efibootmgr -v 2>&1 | head -20"),
+    ("look_and_feel", "kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage"),
+    ("icon_theme", "kreadconfig6 --file kdeglobals --group Icons --key Theme"),
+    ("theme_present",
+     "test -f /usr/share/plasma/look-and-feel/org.sanora.light.desktop/metadata.json "
+     "&& echo SANORA_THEME_PRESENT || echo SANORA_THEME_MISSING"),
+    ("wallpaper",
+     "grep -R 'sanora-default' ~/.config/plasma-org.kde.plasma.desktop-appletsrc 2>/dev/null "
+     "| head -5; test -f /usr/share/sanora/wallpapers/sanora-default.png "
+     "&& echo WALLPAPER_PRESENT || echo WALLPAPER_MISSING"),
+    ("desktop_widgets",
+     "grep -E 'org.kde.plasma.taskmanager|org.kde.plasma.kickoff|org.kde.panel' "
+     "~/.config/plasma-org.kde.plasma.desktop-appletsrc 2>/dev/null | head -20"),
+    ("sessions", "loginctl list-sessions --no-legend"),
+    ("session_types",
+     "for s in $(loginctl list-sessions --no-legend | awk '{print $1}'); do "
+     "loginctl show-session -p Type --value $s; done"),
+    ("kwin_wayland_processes", "pgrep -af 'kwin_wayland|startplasma-wayland|plasmashell'"),
+    ("graphical_env",
+     "for p in $(pgrep -u $(id -u) -x plasmashell | head -2); do "
+     "tr '\000' '\n' < /proc/$p/environ | "
+     "grep -E '^(XDG_SESSION_TYPE|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|DISPLAY|"
+     "XDG_SESSION_DESKTOP)=' || true; done"),
+    ("desktop_apps",
+     "for b in dolphin konsole plasma-discover flatpak fwupdmgr; do "
+     "command -v $b || echo MISSING:$b; done"),
+    ("services",
+     "echo NETWORKMANAGER=$(systemctl is-active NetworkManager); "
+     "echo PIPEWIRE=$(systemctl --user is-active pipewire); "
+     "echo PIPEWIRE_PULSE=$(systemctl --user is-active pipewire-pulse); "
+     "echo WIREPLUMBER=$(systemctl --user is-active wireplumber); "
+     "echo NM_RUNNING=$(nmcli -t -f RUNNING general 2>&1)"),
+    ("sddm",
+     "echo SDDM_ACTIVE=$(systemctl is-active sddm); "
+     "loginctl list-sessions --no-legend | grep -i sddm || true"),
+    ("systemd_analyze", "systemd-analyze"),
+    ("free", "free -m"),
+    ("process_count", "ps -e --no-headers | wc -l"),
+    ("branding", "cat /etc/calamares/branding/sanora/branding.desc | head -5"),
+    ("uname", "uname -a"),
+]
+
+VALIDATE = "sleep 15; " + "; echo SEP; ".join(cmd for _, cmd in VALIDATE_SECTIONS)
+
+
+# QEMU HMP `sendkey` key names. One key per call avoids modifier-accumulation
+# ambiguity (uppercase letters use "shift-<letter>"). The keystrokes are
+# injected into the emulated keyboard, so they reach the X11 SDDM greeter
+# regardless of which XAUTHORITY file the greeter uses.
+QEMU_KEYS = {
+    " ": "spc", "-": "minus", "_": "shift-minus", "!": "shift-1",
+    ".": "dot", ",": "comma", "/": "slash", ":": "shift-semicolon",
+    "@": "shift-2", "#": "shift-3", "$": "shift-4", "%": "shift-5",
+    "^": "shift-6", "&": "shift-7", "*": "shift-8", "(": "shift-9",
+    ")": "shift-0", "=": "equal", "+": "shift-equal", "?": "shift-slash",
+}
+
+
+def hmp_send_text(hmp, text, press_return=True):
+    """Type a string into the guest via the QEMU human monitor."""
+    for ch in text:
+        key = "shift-" + ch.lower() if ch.isupper() else QEMU_KEYS.get(ch, ch)
+        hmp.cmd(f"sendkey {key}")
+    if press_return:
+        hmp.cmd("sendkey ret")
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +340,13 @@ def main():
 
     def run_phase(cmd, phase_name, timeout_seconds):
         """Spawn QEMU, get a serial shell, run `fn(child, hmp)`."""
+        # A previous QEMU may have left the monitor socket behind; remove it so
+        # the new process can bind. Needed for the extra LUKS2 wrong-passphrase
+        # boot attempt, which starts QEMU a third time.
+        try:
+            os.unlink(mon)
+        except OSError:
+            pass
         logfile = out / f"{phase_name}-serial.log"
         errlog = out / f"{phase_name}-qemu-stderr.log"
         shell_cmd = " ".join(shlex.quote(x) for x in cmd) + " 2>" + shlex.quote(str(errlog))
@@ -397,6 +466,22 @@ def main():
             "ATSPI", timeout=30,
         )
 
+        # Qt's AT-SPI bridge registers on the ACCESSIBILITY bus, not the
+        # session bus. Calamares must be given its address at startup, or it
+        # never appears in pyatspi's desktop tree (verified in runs
+        # 41533764392 and 41609868964). Read the address written by
+        # at-spi-bus-launcher and pass it to both Calamares and the driver.
+        a11y = guest_cmd(
+            child,
+            "grep -m1 '^DBUS_SESSION_BUS_ADDRESS=' /run/user/1000/at-spi/bus_0 "
+            "2>/dev/null | cut -d= -f2-; "
+            "ls -l /run/user/1000/at-spi/ 2>/dev/null | head -5",
+            "A11Y", timeout=30,
+        ).strip().splitlines()
+        a11y_addr = a11y[0].strip() if a11y else ""
+        result["evidence"]["at_spi_bus_address_present"] = bool(a11y_addr)
+        a11y_env = f"AT_SPI_BUS_ADDRESS={shlex.quote(a11y_addr)} " if a11y_addr else ""
+
         # Discover the SDDM Xauthority and start Calamares with accessibility on.
         xauth = guest_cmd(
             child,
@@ -412,7 +497,7 @@ def main():
             "QT_QPA_PLATFORM=xcb QT_ACCESSIBILITY=1 "
             "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 "
             "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "XDG_RUNTIME_DIR=/run/user/1000 "
+            "XDG_RUNTIME_DIR=/run/user/1000 " + a11y_env +
             "calamares -D6 > /tmp/sanora-calamares.log 2>&1; "
             "sleep 8; pgrep -a calamares || echo CALAMARES_NOT_RUNNING"
         )
@@ -430,7 +515,7 @@ def main():
             f"DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
             "HOME=/home/user "
             "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-            "XDG_RUNTIME_DIR=/run/user/1000 "
+            "XDG_RUNTIME_DIR=/run/user/1000 " + a11y_env +
             f"python3 {driver_path} {encrypt_flag} "
             f"--timeout {args.timeout} --user {shlex.quote(args.user)} "
             f"--password {shlex.quote(args.password)} "
@@ -444,16 +529,23 @@ def main():
         while time.time() < driver_deadline:
             try:
                 idx = child.expect(
-                    [r"RESULT: SUCCESS", r"RESULT: (FAILED|TIMEOUT)", pexpect.TIMEOUT, pexpect.EOF],
+                    [r"RESULT: SUCCESS", r"RESULT: (FAILED|TIMEOUT)",
+                     r"SANORA_PAGE_PARTITION", pexpect.TIMEOUT, pexpect.EOF],
                     timeout=30,
                 )
             except pexpect.TIMEOUT:
-                idx = 2
+                idx = 3
             if idx in (0, 1):
                 driver_result = "SUCCESS" if idx == 0 else "FAILED"
                 capture(hmp, "install-02-finished")
                 break
-            if idx == 3:
+            if idx == 2:
+                # The driver is on the partition page: capture the encryption
+                # widget / partition layout as visual evidence.
+                capture(hmp, "install-partition-page")
+                result["phases"]["partition_page_reached"] = True
+                continue
+            if idx == 4:
                 break
             progress_shots = result["phases"].setdefault("progress_screenshots", 0)
             if progress_shots < 3:
@@ -519,98 +611,248 @@ def main():
     # ---------------- Phase 2: boot installed system ----------------
     print("=== PHASE 2: boot installed system from disk ===", flush=True)
     time.sleep(3)
-    child2, hmp2, handle2 = run_phase(qemu_args(False), "installed", 900)
-    if child2 is None:
-        return finish(1)
-    try:
-        deadline = time.time() + 300
+
+    def boot_installed(label, passphrase, timeout=420, max_prompt_replies=3):
+        """Boot the disk only. If `passphrase` is set, answer the initramfs
+        LUKS unlock prompt that many times. Returns the live pexpect child,
+        HMP handle, log handle, login state and prompt count.
+        """
+        child, hmp, handle = run_phase(qemu_args(False), label, timeout)
+        if child is None:
+            return None
+        deadline = time.time() + timeout
         logged_in = False
+        prompt_seen = 0
+        prompt_replies = 0
         while time.time() < deadline:
             try:
-                idx = child2.expect(
-                    [r"login:", r"Password:", r"\$ ", pexpect.TIMEOUT, pexpect.EOF],
-                    timeout=min(60, max(5, deadline - time.time())),
+                idx = child.expect(
+                    [r"(?i)(please unlock|enter passphrase|unlocking the disk|"
+                     r"cryptsetup|passphrase for|unlock disk)",
+                     r"login:", r"Password:", r"\$ ",
+                     pexpect.TIMEOUT, pexpect.EOF],
+                    timeout=min(45, max(5, deadline - time.time())),
                 )
             except pexpect.TIMEOUT:
-                idx = 3
+                idx = 4
             if idx == 0:
-                child2.sendline(args.user)
-            elif idx == 1:
-                child2.sendline(args.password)
+                prompt_seen += 1
+                if passphrase and prompt_replies < max_prompt_replies:
+                    child.sendline(passphrase)
+                    prompt_replies += 1
+                continue
+            if idx == 1:
+                child.sendline(args.user)
             elif idx == 2:
+                child.sendline(args.password)
+            elif idx == 3:
                 logged_in = True
                 break
-            elif idx == 4:
-                result["errors"].append("QEMU exited during installed boot")
+            elif idx == 5:
                 break
-        result["phases"]["installed_serial_login"] = logged_in
-        capture(hmp2, "installed-00-desktop")
-        if not logged_in:
-            result["errors"].append("could not log into installed system")
-            return finish(1)
+        return {
+            "child": child, "hmp": hmp, "handle": handle,
+            "logged_in": logged_in, "prompt_seen": prompt_seen,
+            "label": label,
+        }
 
+    # --- Priority 1: proof that a WRONG LUKS passphrase is rejected ---
+    wrong_attempt = None
+    if args.mode == "luks":
+        print("=== PHASE 2a: wrong passphrase must be rejected ===", flush=True)
+        wrong = args.luks_passphrase + "-WRONG"
+        wrong_attempt = boot_installed(
+            "installed-wrong-passphrase", wrong, timeout=200,
+            max_prompt_replies=1,
+        )
+        if wrong_attempt is None:
+            result["errors"].append("wrong-passphrase boot could not start")
+        else:
+            kill(wrong_attempt["child"], wrong_attempt["hmp"],
+                 wrong_attempt["handle"])
+            wlog = (out / "installed-wrong-passphrase-serial.log").read_text(
+                errors="replace")
+            (out / "wrong-passphrase-serial.txt").write_text(wlog, encoding="utf-8")
+            rejection = bool(re.search(
+                r"(?i)(no key available|maximum number of tries|failed to unlock|"
+                r"cryptsetup.*failed|incorrect passphrase|bad passphrase|"
+                r"not a valid luks|no usable keyslot", wlog))
+            # Two or more unlock prompts after a single wrong reply is also
+            # proof that the first passphrase was refused.
+            retried = wrong_attempt["prompt_seen"] >= 2
+            rejected = (rejection or retried) and not wrong_attempt["logged_in"]
+            result["installed"]["wrong_passphrase"] = {
+                "status": "PASS" if rejected else "FAIL",
+                "wrong_passphrase_used": wrong,
+                "unlock_prompts_seen": wrong_attempt["prompt_seen"],
+                "rejection_text_found": rejection,
+                "login_obtained_with_wrong_passphrase": wrong_attempt["logged_in"],
+                "serial_log": "out/wrong-passphrase-serial.txt",
+            }
+            if not rejected:
+                result["errors"].append(
+                    "wrong LUKS passphrase was not proven to be rejected")
+            time.sleep(3)
+
+    # --- Priority 1/2: boot with the correct passphrase (or plain boot) ---
+    correct_passphrase = args.luks_passphrase if args.mode == "luks" else None
+    boot = boot_installed("installed", correct_passphrase, timeout=420)
+    if boot is None:
+        return finish(1)
+    child2, hmp2, handle2 = boot["child"], boot["hmp"], boot["handle"]
+    logged_in = boot["logged_in"]
+    result["phases"]["installed_serial_login"] = logged_in
+    result["phases"]["luks_unlock_prompts_seen"] = boot["prompt_seen"]
+    capture(hmp2, "installed-00-desktop")
+    if not logged_in:
+        result["errors"].append("could not log into installed system")
+        kill(child2, hmp2, handle2)
+        return finish(1)
+
+    try:
         child2.sendline("stty -echo")
         time.sleep(0.4)
-        text = guest_cmd(child2, VALIDATE, "VALIDATE", timeout=180)
+
+        # --- Priority 2: an actual graphical user session, not just the greeter ---
+        # First try a real interactive SDDM login by injecting keystrokes into the
+        # emulated keyboard (no dependency on the greeter's XAUTHORITY path).
+        sddm_state = guest_cmd(
+            child2,
+            "systemctl is-active sddm; loginctl list-sessions --no-legend | "
+            "grep -i sddm || true; ls /usr/share/wayland-sessions/ 2>/dev/null | head -10",
+            "SDDM", timeout=90,
+        )
+        result["installed"]["sddm_state"] = sddm_state
+        hmp_send_text(hmp2, args.password)
+        time.sleep(35)
+        gcheck = guest_cmd(
+            child2,
+            "loginctl list-sessions --no-legend; "
+            "for s in $(loginctl list-sessions --no-legend | awk '{print $1}'); do "
+            "loginctl show-session -p Type --value $s; done; "
+            "pgrep -af plasmashell | head -5",
+            "GCHECK", timeout=90,
+        )
+        interactive = ("wayland" in gcheck.lower()
+                       and "plasmashell" in gcheck.lower())
+        result["installed"]["sddm_interactive_login"] = interactive
+        if not interactive:
+            # Harness adaptation for observability: enable autologin and restart
+            # SDDM so a real graphical session exists. Documented, not hidden.
+            sess = guest_cmd(
+                child2,
+                "ls /usr/share/wayland-sessions/ 2>/dev/null | grep -i plasma | head -1",
+                "WSESS", timeout=60,
+            ).strip().splitlines()
+            session_file = sess[-1].strip() if sess else "plasmawayland.desktop"
+            guest_cmd(
+                child2,
+                "printf '%s\\n' 'Sanora-Dev-2026!' | sudo -S sh -c '"
+                "mkdir -p /etc/sddm.conf.d; "
+                "printf \"[Autologin]\\nUser=sanora\\nSession=" + session_file +
+                "\\nRelogin=false\\n\" > /etc/sddm.conf.d/zz-sanora-test.conf; "
+                "systemctl restart sddm'; echo SANORA_SDDM_AUTOLOGIN_READY",
+                "SDDMAUTO", timeout=120,
+            )
+            time.sleep(45)
+        result["installed"]["graphical_session_source"] = (
+            "interactive SDDM login via QEMU keyboard" if interactive
+            else "SDDM autologin (harness adaptation, documented)"
+        )
+        capture(hmp2, "installed-graphical")
+
+        # --- Validate from the installed system (now with a graphical session) ---
+        text = guest_cmd(child2, VALIDATE, "VALIDATE", timeout=240)
         (out / "installed-checks.txt").write_text(text, encoding="utf-8")
         secs = [s.strip() for s in text.split("SEP")]
+        keys = [k for k, _ in VALIDATE_SECTIONS]
         evidence = {
-            "os_release": secs[0] if len(secs) > 0 else "",
-            "sanora_info": secs[1] if len(secs) > 1 else "",
-            "user_host": secs[2] if len(secs) > 2 else "",
-            "locale": secs[3] if len(secs) > 3 else "",
-            "lsblk": secs[4] if len(secs) > 4 else "",
-            "root_mount": secs[5] if len(secs) > 5 else "",
-            "efi_boot_files": secs[6] if len(secs) > 6 else "",
-            "luks_dump": secs[7] if len(secs) > 7 else "",
-            "efibootmgr": secs[8] if len(secs) > 8 else "",
-            "look_and_feel": secs[9] if len(secs) > 9 else "",
-            "theme_present": secs[10] if len(secs) > 10 else "",
-            "sessions": secs[11] if len(secs) > 11 else "",
-            "session_types": secs[12] if len(secs) > 12 else "",
-            "kwin_wayland_processes": secs[13] if len(secs) > 13 else "",
-            "systemd_analyze": secs[14] if len(secs) > 14 else "",
-            "free": secs[15] if len(secs) > 15 else "",
-            "process_count": secs[16] if len(secs) > 16 else "",
-            "branding": secs[17] if len(secs) > 17 else "",
-            "uname": secs[18] if len(secs) > 18 else "",
+            key: (secs[i] if i < len(secs) else "")
+            for i, key in enumerate(keys)
         }
         r = result.setdefault("installed", {})
         r.update(evidence)
+        r["evidence_section_count"] = len(secs)
+
+        if args.mode == "luks":
+            luks_ok = (
+                ("Version:       2" in evidence["luks_dump"]
+                 or "LUKS2" in evidence["luks_dump"].upper())
+                and "crypto_LUKS" in evidence["lsblk"]
+                and bool(evidence["crypttab"].strip())
+            )
+            initramfs_ok = bool(re.search(
+                r"cryptsetup|cryptroot|crypttab|dm-crypt|askpass|keyfile",
+                evidence["initramfs_crypto"], re.I))
+            wp = result["installed"].get("wrong_passphrase", {})
+            wrong_ok = wp.get("status") == "PASS"
+            result["installed"]["luks2_validation"] = {
+                "luks2_header_and_crypttab": "PASS" if luks_ok else "FAIL",
+                "initramfs_crypto_components": "PASS" if initramfs_ok else "FAIL",
+                "wrong_passphrase_rejected": "PASS" if wrong_ok else "FAIL",
+                "correct_passphrase_prompts_seen": boot["prompt_seen"],
+                "passphrase_required_at_boot": (
+                    "PASS" if boot["prompt_seen"] >= 1 else "FAIL")
+            }
+        else:
+            luks_ok = True       # plain scenario: LUKS not applicable
+            initramfs_ok = True  # plain scenario: crypto initramfs not applicable
+            wrong_ok = True
+            result["installed"]["luks2_validation"] = {
+                "luks2_header_and_crypttab": "NOT TESTED (plain scenario)",
+                "initramfs_crypto_components": "NOT TESTED (plain scenario)",
+                "wrong_passphrase_rejected": "NOT TESTED (plain scenario)",
+            }
+
         checks = {
             "os_release_sanora": 'NAME="SANORA OS"' in evidence["os_release"]
                                   and 'ID="sanora"' in evidence["os_release"],
             "sanora_info": "SANORA OS" in evidence["sanora_info"],
             "correct_user": args.user in evidence["user_host"],
             "english_locale": "en_US" in evidence["locale"],
-            "root_filesystem": bool(re.search(r"ext4|btrfs", evidence["root_mount"])),
+            "root_filesystem": "ext4" in evidence["root_mount"],
             "efi_system_partition": bool(re.search(r"EFI|BOOT", evidence["efi_boot_files"])),
             "grub_installed": "grub" in evidence["efi_boot_files"].lower()
                               or "SANORA" in evidence["efi_boot_files"],
-            "luks2": "LUKS2" in evidence["luks_dump"].upper()
-                     or "Version:       2" in evidence["luks_dump"],
+            "luks2": luks_ok,
+            "initramfs_crypto": initramfs_ok,
+            "wrong_passphrase_rejected": wrong_ok,
+            "sddm_authenticated_session": interactive,
+            "wayland": ("XDG_SESSION_TYPE=wayland" in evidence["graphical_env"]
+                        and "wayland" in evidence["session_types"].lower()),
             "sanora_theme": "SANORA_THEME_PRESENT" in evidence["theme_present"],
             "global_theme_selected": "org.sanora" in evidence["look_and_feel"],
-            "wayland": "wayland" in evidence["session_types"].lower()
-                       or "kwin_wayland" in evidence["kwin_wayland_processes"],
+            "icon_theme": "sanora" in evidence["icon_theme"].lower(),
+            "wallpaper": "WALLPAPER_PRESENT" in evidence["wallpaper"],
+            "desktop_widgets": bool(re.search(
+                r"org\.kde\.plasma\.taskmanager|org\.kde\.plasma\.kickoff|org\.kde\.panel",
+                evidence["desktop_widgets"])),
+            "desktop_apps": "MISSING:" not in evidence["desktop_apps"],
+            "graphical_session_running": (
+                "plasmashell" in evidence["kwin_wayland_processes"]
+                and "WAYLAND_DISPLAY=" in evidence["graphical_env"]
+            ),
+            "services": "SDDM_ACTIVE=active" in evidence["sddm"],
+            "pipewire": all(
+                f"{k}=active" in evidence["services"]
+                for k in ("PIPEWIRE", "PIPEWIRE_PULSE", "WIREPLUMBER")),
+            "networkmanager": "NETWORKMANAGER=active" in evidence["services"],
         }
-        result["installed"]["checks"] = checks
+        r["checks"] = checks
+        r["checks_status"] = {
+            k: ("PASS" if v else "FAIL") for k, v in checks.items()
+        }
         result["status"] = "SUCCESS" if all(checks.values()) else "PARTIAL"
-        if args.mode == "plain":
-            # LUKS is not expected for the plain scenario.
-            checks["luks2"] = True
-            result["installed"]["checks"] = checks
-            result["status"] = "SUCCESS" if all(checks.values()) else "PARTIAL"
-        # Record explicitly that the installed system's Wayland session is not
-        # verified: validation logs in over the serial console and never starts
-        # a graphical login. The live ISO's Wayland session IS verified by
-        # tests/boot/qemu_boot.py. Do not claim Wayland for the installed boot.
-        result["installed"]["wayland_note"] = (
-            "Not verified on the installed system: validation used a serial "
-            "login; SDDM was at the greeter. Wayland is verified on the live "
-            "ISO by qemu_boot.py."
+        r["verdict_note"] = (
+            "PASS = observed in the installed VM. PARTIAL = installation and "
+            "reboot succeeded but at least one check failed. NOT TESTED is used "
+            "explicitly for scenario-inapplicable items."
         )
         capture(hmp2, "installed-01-desktop")
+
+    except (pexpect.TIMEOUT, pexpect.EOF, OSError, ValueError) as exc:
+        result["errors"].append(f"installed-system validation raised: {exc}")
+        result["status"] = "PARTIAL"
     finally:
         kill(child2, hmp2, handle2)
 

@@ -68,18 +68,14 @@ jobs:
           python3 tests/install/qemu_install.py \
             --iso "${{ steps.iso.outputs.iso }}" \
             --out out/install-plain --mode plain \
-            --driver tests/install/calamares_driver.py --timeout 1200
+            --driver tests/install/calamares_driver.py --timeout 1800
           rc=$?
           set -e
           cat out/install-plain/install-validation.json || true
           echo "::notice::plain install harness exit: $rc"
           exit "$rc"
 
-      # KNOWN GAP: the keyboard fallback does not yet automate the
-      # `En&crypt system` checkbox and its two passphrase fields, so this
-      # scenario currently performs a second PLAIN installation. It is kept
-      # as regression coverage for the reboot path. See STATUS.md.
-      - name: Installation - LUKS2 scenario (encryption not yet automated)
+      - name: Installation - LUKS2 encrypted root + wrong-passphrase test
         if: success()
         id: luks
         run: |
@@ -87,7 +83,7 @@ jobs:
           python3 tests/install/qemu_install.py \
             --iso "${{ steps.iso.outputs.iso }}" \
             --out out/install-luks --mode luks \
-            --driver tests/install/calamares_driver.py --timeout 1200
+            --driver tests/install/calamares_driver.py --timeout 2400
           rc=$?
           set -e
           cat out/install-luks/install-validation.json || true
@@ -111,12 +107,13 @@ jobs:
               "out/install-plain/install-driver-log.txt",
               "out/install-plain/installed-checks.txt",
               "out/install-plain/installed-serial.log",
-              "out/install-plain/installed-qemu-stderr.log",
               "out/install-luks/install-qemu-stderr.log",
               "out/install-luks/install-serial.log",
               "out/install-luks/install-driver-log.txt",
               "out/install-luks/installed-checks.txt",
               "out/install-luks/installed-serial.log",
+              "out/install-luks/wrong-passphrase-serial.txt",
+              "out/install-luks/installed-wrong-passphrase-serial.log",
               # Verdicts last so they survive the 60k check-run truncation.
               "out/install-plain/install-validation.json",
               "out/install-luks/install-validation.json",
@@ -126,13 +123,14 @@ jobs:
               p = pathlib.Path(name)
               if p.is_file():
                   body = p.read_text(errors="replace")
-                  if len(body) > 5000:
-                      body = "...[truncated]...\n" + body[-5000:]
+                  if len(body) > 7000:
+                      body = "...[truncated]...\n" + body[-7000:]
                   parts.append(f"===== {name} =====\n{body}")
           # One downscaled screenshot per phase, base64 for local inspection.
           budget = 60000 - sum(len(p) for p in parts) - 2000
-          for label in ("install-01-calamares-welcome", "install-02-finished",
-                        "installed-00-desktop", "installed-01-desktop"):
+          for label in ("install-01-calamares-welcome", "install-partition-page",
+                        "install-02-finished", "installed-00-desktop",
+                        "installed-graphical", "installed-01-desktop"):
               for base in ("out/install-plain", "out/install-luks"):
                   b64 = pathlib.Path(base) / f"{label}.png.b64"
                   if b64.is_file() and budget > 12000:

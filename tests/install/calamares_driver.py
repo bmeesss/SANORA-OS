@@ -33,7 +33,7 @@ RESULT_PATH = "/tmp/sanora-calamares-driver.json"
 #   users/page_usersetup.ui and partition/gui/EncryptWidget.ui
 FIELD_VALUES = {
     "Your Full Name": "user",
-    "login": "user",
+    "login": "username",
     "Computer Name": "host",
     "Password": "password",
     "Repeat Password": "password",
@@ -262,9 +262,39 @@ def keyboard_fallback(args, values, finish, steps):
         steps.append(f"advanced past {label}")
         log(f"advanced past {label}")
 
+    def enable_encryption():
+        """Tick `En&crypt system` and fill both LUKS passphrase fields.
+
+        Verified against Calamares 3.3.14 src/modules/partition/gui/:
+          * EncryptWidget.ui: checkbox text "En&amp;crypt system" -> Alt+E;
+            QHBoxLayout child order is
+            [checkbox, label, passphrase QLineEdit, confirm QLineEdit, spacer,
+            icon], so Tab from the checkbox reaches the passphrase field and
+            the next Tab reaches the confirmation field.
+          * ChoicePage.cpp only enables Next when
+            EncryptWidget::state() == Confirmed, i.e. both fields must match
+            and be non-empty. Reaching the summary page is therefore evidence
+            that the passphrases were accepted.
+        """
+        print("SANORA_PAGE_PARTITION", flush=True)
+        steps.append("on partition page")
+        log("on partition page")
+        xdo("key", "--clearmodifiers", "alt+e")
+        time.sleep(1)
+        xdo("key", "--clearmodifiers", "Tab")
+        xdo("type", "--clearmodifiers", "--delay", "25", values["luks"])
+        xdo("key", "--clearmodifiers", "Tab")
+        xdo("type", "--clearmodifiers", "--delay", "25", values["luks"])
+        steps.append("enabled Encrypt system (Alt+E) and filled both passphrases")
+        log("enabled Encrypt system (Alt+E) and filled both passphrases")
+        time.sleep(1)
+
     next_page("welcome")
     next_page("locale")
     next_page("keyboard")
+    # We are now ON the partition page (the 3rd alt+n advanced from keyboard).
+    if args.encrypt:
+        enable_encryption()
     next_page("partition")
 
     # Users page: the five text fields in tab order.
@@ -294,24 +324,47 @@ def keyboard_fallback(args, values, finish, steps):
 
     # Wait for the exec phase to create partitions on the target disk, then
     # allow generous time for unpackfs/bootloader before the host reboots.
+    # For the encrypted scenario require an actual crypto_LUKS container: an
+    # ext4-only result means "Encrypt system" was NOT ticked, and must never
+    # be reported as a successful LUKS2 install.
     deadline = time.time() + min(args.timeout, 420)
     partitioned = False
+    luks_created = False
+    last_lsblk = ""
     while time.time() < deadline:
         out = subprocess.run(
             ["lsblk", "-no", "FSTYPE", "/dev/vda"],
             capture_output=True, text=True,
         ).stdout
-        if "ext4" in out or "crypto_LUKS" in out or "vfat" in out:
+        last_lsblk = out
+        has_fs = "ext4" in out or "crypto_LUKS" in out or "vfat" in out
+        if args.encrypt:
+            luks_created = "crypto_LUKS" in out
+            if has_fs and luks_created:
+                partitioned = True
+                log("target disk has filesystems INCLUDING crypto_LUKS")
+                break
+        elif has_fs:
             partitioned = True
             log("target disk now has filesystems")
             break
         time.sleep(10)
+    if not partitioned:
+        log(f"final lsblk output: {last_lsblk!r}")
     if partitioned:
         log("waiting for unpackfs/bootloader jobs to finish")
         time.sleep(420)
+    if args.encrypt and not luks_created:
+        finish(
+            "FAILED",
+            "Encrypt system was not enabled: no crypto_LUKS volume appeared "
+            "on /dev/vda (root stayed plain ext4)",
+            steps,
+        )
     finish(
         "SUCCESS" if partitioned else "FAILED",
-        "keyboard fallback: partitions created" if partitioned
+        ("keyboard fallback: LUKS2 encrypted root created"
+         if args.encrypt else "keyboard fallback: partitions created") if partitioned
         else "keyboard fallback: no target filesystems appeared",
         steps,
     )
@@ -405,6 +458,7 @@ def main() -> int:
         if args.encrypt and not encrypted_clicked:
             for i in items:
                 if i["role"] == "check box" and "encrypt" in i["name"].lower():
+                    print("SANORA_PAGE_PARTITION", flush=True)
                     try:
                         state = i["node"].getState()
                         checked = state.contains(pyatspi.STATE_CHECKED)
@@ -427,6 +481,10 @@ def main() -> int:
                 if pattern.lower() in i["name"].lower():
                     key = kind
                     break
+            if key is None and args.encrypt:
+                label = f"{i['name']} {i['desc']}".lower()
+                if "passphrase" in label or "confirm" in label:
+                    key = "luks"
             if key is None:
                 continue
             try:
