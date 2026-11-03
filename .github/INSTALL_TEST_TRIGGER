@@ -17,3 +17,4 @@ source-run-id: 41528961532
 # install iteration 9 (driver as user 1000)
 # install iteration 10 (Alt+I)
 # install iteration 11 (driver output on serial)
+# install iteration 12 (persistent EFI vars)
