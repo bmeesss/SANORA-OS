@@ -21,3 +21,4 @@ source-run-id: 41528961532
 # install iteration 13 (serial console on installed GRUB)
 # install iteration 14 (Wayland verification)
 # install iteration 15 (plain + LUKS2 evidence)
+# phase 3.1 iteration 1 (LUKS2 + graphical session)
