@@ -12,3 +12,4 @@ source-run-id: 41528961532
 # install iteration 4 (X11 diagnostics + coordinate click)
 # install iteration 5 (xcb platform)
 # install iteration 6 (main-window selection)
+# install iteration 7 (named window + a11y bus)

@@ -404,6 +404,8 @@ def main():
             f"sudo -n -b env DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
             "QT_QPA_PLATFORM=xcb QT_ACCESSIBILITY=1 "
             "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 "
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
+            "XDG_RUNTIME_DIR=/run/user/1000 "
             "calamares -D6 > /tmp/sanora-calamares.log 2>&1; "
             "sleep 8; pgrep -a calamares || echo CALAMARES_NOT_RUNNING"
         )
@@ -418,6 +420,8 @@ def main():
         encrypt_flag = "--encrypt" if args.mode == "luks" else ""
         driver = (
             f"sudo -n env DISPLAY=:0 XAUTHORITY={shlex.quote(xauth)} "
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
+            "XDG_RUNTIME_DIR=/run/user/1000 "
             f"python3 {driver_path} {encrypt_flag} "
             f"--timeout {args.timeout} --user {shlex.quote(args.user)} "
             f"--password {shlex.quote(args.password)} "

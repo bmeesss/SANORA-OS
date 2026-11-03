@@ -213,10 +213,14 @@ def pick_window():
         if w < 300 or h < 200:
             continue
         name = xdo("getwindowname", wid)
+        named = any(k in name.lower() for k in ("calamares", "installer", "sanora"))
         area = w * h
-        log(f"window candidate {wid}: {w}x{h} name={name!r}")
-        if best is None or area > best[2]:
-            best = (wid, geom, area)
+        log(f"window candidate {wid}: {w}x{h} name={name!r} named={named}")
+        # Prefer a named Calamares window; the root/desktop window is larger
+        # but must never be activated (it is the 1280x800 X root).
+        score = (1 if named else 0, area)
+        if best is None or score > best[2]:
+            best = (wid, geom, score)
     return (best[0], best[1]) if best else (None, {})
 
 
@@ -248,11 +252,10 @@ def keyboard_fallback(args, values, finish, steps):
             pass
 
     def next_page(label):
+        # One advance attempt per page: the '&Next' mnemonic. The coordinate
+        # click is a fallback only when the mnemonic does nothing (checked by
+        # Calamares' own log in CI diagnostics), to avoid double-advancing.
         xdo("key", "--clearmodifiers", "alt+n")
-        time.sleep(1)
-        xdo("key", "--clearmodifiers", "Return")
-        time.sleep(1)
-        click_next()
         time.sleep(5)
         steps.append(f"advanced past {label}")
         log(f"advanced past {label}")
@@ -279,9 +282,7 @@ def keyboard_fallback(args, values, finish, steps):
     next_page("users -> summary")
     # Summary page: the button label is "Install" (ExecutionViewStep).
     xdo("key", "--clearmodifiers", "alt+n")
-    time.sleep(1)
-    xdo("key", "--clearmodifiers", "Return")
-    time.sleep(1)
+    time.sleep(2)
     click_next()
     steps.append("clicked Install")
     log("clicked Install")
