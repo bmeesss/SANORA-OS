@@ -188,6 +188,11 @@ VALIDATE_SECTIONS = [
     ("sddm",
      "echo SDDM_ACTIVE=$(systemctl is-active sddm); "
      "loginctl list-sessions --no-legend | grep -i sddm || true"),
+    ("apt_verification",
+     SUDO + "sh -c 'apt-get update -o Acquire::Retries=1 2>&1 | tail -25'"),
+    ("apt_trust",
+     "ls /etc/apt/trusted.gpg.d/ 2>&1; "
+     "echo APT_SECURE=$(apt-config dump | grep -i 'Acquire::AllowInsecureRepositories' || true)"),
     ("systemd_analyze", "systemd-analyze"),
     ("free", "free -m"),
     ("process_count", "ps -e --no-headers | wc -l"),
@@ -836,8 +841,16 @@ def main():
             "pipewire": all(
                 f"{k}=active" in evidence["services"]
                 for k in ("PIPEWIRE", "PIPEWIRE_PULSE", "WIREPLUMBER")),
-            "networkmanager": "NETWORKMANAGER=active" in evidence["services"],
-        }
+        "networkmanager": "NETWORKMANAGER=active" in evidence["services"],
+        "apt_gpg_verification": (
+            "NO_PUBKEY" not in evidence["apt_verification"]
+            and "GPG error" not in evidence["apt_verification"]
+            and "is not signed" not in evidence["apt_verification"]
+        ),
+        "ephemeral_dev_key_not_trusted_in_installed_system": (
+            "sanora" not in evidence["apt_trust"].lower()
+        ),
+    }
         r["checks"] = checks
         r["checks_status"] = {
             k: ("PASS" if v else "FAIL") for k, v in checks.items()

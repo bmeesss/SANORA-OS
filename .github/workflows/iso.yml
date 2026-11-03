@@ -177,37 +177,91 @@ jobs:
           print(json.dumps(report, indent=2, sort_keys=True))
           PY
 
-      - name: Reproducibility - diffoscope and file-level diff
+      - name: Reproducibility - deep diffoscope analysis
         if: always()
         run: |
-          # A full-ISO diffoscope run unpacks both 2.4 GB images into the
-          # runner's /tmp and kills the GitHub-hosted container (verified in
-          # runs 41505275082 and 41514773588). Keep the analysis bounded:
-          # diffoscope is run on the deterministic reproducibility EVIDENCE
-          # (chroot file listings and build metadata), and the file-level diff
-          # identifies exactly which paths/sizes/mtimes differ.
+          # Phase 3.1: identify the EXACT files and timestamps that differ
+          # between two ISO builds of the same commit. Disk is managed
+          # explicitly: the build tree was removed in the previous step, apt
+          # caches are cleaned, the ISOs are converted to their squashfs
+          # payloads (which are then the only large files) and everything is
+          # removed before the Debian baseline ISO is downloaded. No ISO is
+          # manipulated to force checksums to match.
+
           set +e
+          apt-get clean >/dev/null 2>&1
+          rm -rf /var/lib/apt/lists/* >/dev/null 2>&1
+          echo "=== disk before analysis ==="
           df -h / || true
+          mkdir -p /tmp/repro /tmp/repro/tmp
           : > out/diffoscope.txt
-          echo "=== diffoscope: chroot file lists ===" >> out/diffoscope.txt
-          timeout 120 diffoscope --max-text-report-size 60000 \
-            /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
-            >> out/diffoscope.txt 2>&1
-          echo "diffoscope file-list exit: $?" >> out/diffoscope.txt
-          echo "=== diffoscope: build metadata ===" >> out/diffoscope.txt
-          timeout 120 diffoscope --max-text-report-size 30000 \
-            /tmp/first-metadata.json out/build-metadata.json \
-            >> out/diffoscope.txt 2>&1
-          echo "diffoscope metadata exit: $?" >> out/diffoscope.txt
-          echo "=== plain file-list diff (path|type|size|mtime|mode|uid|gid) ==="
-          diff /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
-            > out/squashfs-metadata-diff.txt 2>&1
-          echo "differing lines: $(wc -l < out/squashfs-metadata-diff.txt)"
-          head -100 out/squashfs-metadata-diff.txt
-          head -120 out/diffoscope.txt
-          # Free the retained first ISO before the Debian baseline download.
-          rm -f /tmp/sanora-first.iso
-          df -h / || true
+
+          FIRST=/tmp/sanora-first.iso
+          SECOND="$(find out -maxdepth 1 -name '*.iso' -print -quit)"
+          echo "first=$FIRST second=$SECOND" | tee out/repro-inputs.txt
+
+          # --- ISO-level directory listings (names, sizes, timestamps) ---
+          if [ -f "$FIRST" ] && [ -n "$SECOND" ]; then
+            isoinfo -l -R -i "$FIRST" > /tmp/repro/iso-list-1.txt 2>&1
+            isoinfo -l -R -i "$SECOND" > /tmp/repro/iso-list-2.txt 2>&1
+            diff /tmp/repro/iso-list-1.txt /tmp/repro/iso-list-2.txt > out/iso-listing-diff.txt 2>&1
+            echo "iso-listing differing lines: $(wc -l < out/iso-listing-diff.txt)"
+            head -120 out/iso-listing-diff.txt
+            cp /tmp/repro/iso-list-1.txt out/iso-list-1.txt
+            cp /tmp/repro/iso-list-2.txt out/iso-list-2.txt
+
+            # --- Extract only the squashfs payload from each ISO ---
+            xorriso -osirrox on -indev "$FIRST" \
+              -extract /live/filesystem.squashfs /tmp/repro/fs1.squashfs 2>&1 | tail -3
+            xorriso -osirrox on -indev "$SECOND" \
+              -extract /live/filesystem.squashfs /tmp/repro/fs2.squashfs 2>&1 | tail -3
+            ls -l /tmp/repro/*.squashfs | tee out/squashfs-sizes.txt
+            echo "=== squashfs superblocks ===" | tee -a out/diffoscope.txt
+            unsquashfs -s /tmp/repro/fs1.squashfs >> out/diffoscope.txt 2>&1
+            unsquashfs -s /tmp/repro/fs2.squashfs >> out/diffoscope.txt 2>&1
+
+            # --- Exact per-file listing (path, size, mtime, mode, uid, gid) ---
+            unsquashfs -ll /tmp/repro/fs1.squashfs > /tmp/repro/sq-list-1.txt 2>&1
+            unsquashfs -ll /tmp/repro/fs2.squashfs > /tmp/repro/sq-list-2.txt 2>&1
+            diff /tmp/repro/sq-list-1.txt /tmp/repro/sq-list-2.txt > out/squashfs-metadata-diff.txt 2>&1
+            echo "squashfs listing differing lines: $(wc -l < out/squashfs-metadata-diff.txt)"
+            head -150 out/squashfs-metadata-diff.txt
+            cp /tmp/repro/sq-list-1.txt out/squashfs-list-1.txt
+            cp /tmp/repro/sq-list-2.txt out/squashfs-list-2.txt
+
+            # --- Byte offsets of the first differences ---
+            cmp -l "$FIRST" "$SECOND" 2>/dev/null | head -20 > out/byte-diff.txt
+            echo "first differing byte offsets:"; cat out/byte-diff.txt
+
+            # --- Free the ISOs before the (disk-hungry) diffoscope run ---
+            rm -f "$FIRST"
+            echo "=== disk after removing first ISO ==="; df -h / || true
+            echo "=== diffoscope on the two squashfs payloads (bounded) ===" >> out/diffoscope.txt
+            TMPDIR=/tmp/repro/tmp timeout 900 diffoscope \
+              --max-container-depth 1 --max-text-report-size 200000 \
+              /tmp/repro/fs1.squashfs /tmp/repro/fs2.squashfs \
+              >> out/diffoscope.txt 2>&1
+            echo "diffoscope squashfs exit: $?" >> out/diffoscope.txt
+
+            echo "=== diffoscope on chroot file lists ===" >> out/diffoscope.txt
+            timeout 120 diffoscope --max-text-report-size 60000 \
+              /tmp/first-chroot-file-list.txt out/chroot-file-list.txt \
+              >> out/diffoscope.txt 2>&1
+            echo "diffoscope file-list exit: $?" >> out/diffoscope.txt
+            echo "=== diffoscope on build metadata ===" >> out/diffoscope.txt
+            timeout 120 diffoscope --max-text-report-size 30000 \
+              /tmp/first-metadata.json out/build-metadata.json \
+              >> out/diffoscope.txt 2>&1
+            echo "diffoscope metadata exit: $?" >> out/diffoscope.txt
+            head -160 out/diffoscope.txt
+
+            rm -rf /tmp/repro
+          else
+            echo "ISO pair not available; deep analysis SKIPPED (not passed)" > out/diffoscope.txt
+            cat out/diffoscope.txt
+          fi
+
+          echo "=== disk after analysis ==="; df -h / || true
           exit 0
 
       - name: Show build metadata
@@ -306,6 +360,9 @@ jobs:
               "out/byte-diff-context.txt",
               "out/diffoscope.txt",
               "out/squashfs-metadata-diff.txt",
+              "out/iso-listing-diff.txt",
+              "out/squashfs-sizes.txt",
+              "out/repro-inputs.txt",
               "out/baseline/baseline-comparison.json",
               "out/baseline/debian-baseline.txt",
               "build/work/repo-metadata.json",

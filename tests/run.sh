@@ -32,10 +32,10 @@ python3 -m py_compile \
     build/scripts/write-metadata.py \
     tests/helpers.py tests/test_static.py tests/test_package.py \
     tests/test_assemble.py tests/check_package_names.py \
-    tests/test_theme.py tests/test_repo.py tests/test_install.py \
+    tests/test_theme.py tests/test_repo.py tests/test_install.py tests/test_release.py \
     tests/boot/qemu_boot.py tests/boot/qemu_baseline.py \
     tests/install/qemu_install.py tests/install/calamares_driver.py
-echo "  ok  py_compile (12 modules)"
+echo "  ok  py_compile (13 modules)"
 
 echo "=== 3/5 Optional ShellCheck ==="
 if command -v shellcheck >/dev/null 2>&1; then
