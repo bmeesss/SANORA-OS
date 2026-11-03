@@ -478,6 +478,33 @@ def main():
             result["errors"].append("Calamares did not report installation complete")
             return finish(1)
 
+        # The installed system's GRUB config does not carry the live ISO's
+        # `console=ttyS0` boot parameter. Add it to the installed grub.cfg so
+        # the post-reboot validation can use the serial console. This is a
+        # TEST-HARNESS adaptation for observability only: no partition,
+        # filesystem or package data is altered.
+        try:
+            prep = guest_cmd(
+                child,
+                "sudo -n sh -c '"
+                "mkdir -p /mnt/sanora-target; "
+                "for p in /dev/vda2 /dev/vda1 /dev/vda3; do "
+                "  mount -o rw \"$p\" /mnt/sanora-target 2>/dev/null || continue; "
+                "  if [ -f /mnt/sanora-target/grub/grub.cfg ]; then "
+                "    sed -i \"s/quiet/quiet console=ttyS0,115200/\" "
+                "      /mnt/sanora-target/grub/grub.cfg; "
+                "    echo GRUB_SERIAL_ADDED; "
+                "  fi; "
+                "  umount /mnt/sanora-target; "
+                "done'; echo SANORA_GRUB_PREP_DONE",
+                "GRUBPREP", timeout=120,
+            )
+            result["phases"]["installed_grub_serial_added"] = (
+                "GRUB_SERIAL_ADDED" in prep
+            )
+        except (pexpect.TIMEOUT, pexpect.EOF) as exc:
+            result["errors"].append(f"GRUB serial prep failed: {exc}")
+
         # Power off cleanly before booting the disk.
         try:
             child.sendline("sudo -n poweroff")
